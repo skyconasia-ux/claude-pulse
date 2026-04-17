@@ -2,7 +2,8 @@ const WS_URL = `ws://${location.host}`;
 const THRESHOLD = 100000;
 
 let ws;
-let sessions = {};      // keyed by session_id
+let sessions = {};        // keyed by session_id
+let chartHistory = {};    // session_id → [{turn, tokens}]
 let startedAt = null;
 let elapsedTimer = null;
 let pendingAbortId = null;
@@ -23,10 +24,23 @@ function setConnected(live) {
   document.getElementById("conn-label").textContent = live ? "Live" : "Reconnecting...";
 }
 
+function recordHistory(s) {
+  if (!chartHistory[s.session_id]) chartHistory[s.session_id] = [];
+  const hist = chartHistory[s.session_id];
+  const turn = s.turns || 0;
+  const last = hist[hist.length - 1];
+  if (!last || last.turn !== turn) {
+    hist.push({ turn, tokens: s.tokens_total || 0 });
+    if (hist.length > 60) hist.shift();
+  } else {
+    last.tokens = s.tokens_total || 0;
+  }
+}
+
 function handleMessage(msg) {
   if (msg.type === "sessions_snapshot") {
     sessions = {};
-    for (const s of msg.sessions) sessions[s.session_id] = s;
+    for (const s of msg.sessions) { sessions[s.session_id] = s; recordHistory(s); }
     if (!startedAt) {
       startedAt = Date.now();
       elapsedTimer = setInterval(updateElapsed, 1000);
@@ -34,10 +48,12 @@ function handleMessage(msg) {
     renderAll();
   } else if (msg.type === "session_updated") {
     sessions[msg.session.session_id] = msg.session;
+    recordHistory(msg.session);
     renderTile(msg.session);
     updateTopbar();
   } else if (msg.type === "checkpoint_event") {
     sessions[msg.state.session_id] = msg.state;
+    recordHistory(msg.state);
     renderTile(msg.state);
     showBanner(msg.severity, msg.state.project_name);
   }
@@ -110,6 +126,10 @@ function buildTile(sessionId) {
       </div>
       <div class="progress-track"><div class="progress-fill" data-field="bar" style="width:0%"></div></div>
     </div>
+    <div class="chart-wrap">
+      <div class="chart-label">TOKEN BURN — PER TURN</div>
+      <canvas class="tile-chart" data-field="chart"></canvas>
+    </div>
     <div class="stats-row">
       <div class="stat stat-cost"><div class="stat-label">COST</div><div class="stat-value" data-field="cost">$0.00</div></div>
       <div class="stat stat-turns"><div class="stat-label">TURNS</div><div class="stat-value" data-field="turns">0</div></div>
@@ -160,6 +180,10 @@ function updateTile(tile, s) {
   const level = s.alert_level || "green";
   alertEl.className = `alert-pill alert-${level}`;
   alertEl.textContent = `● ${level.toUpperCase()}`;
+
+  // Area chart
+  const canvas = tile.querySelector("[data-field='chart']");
+  if (canvas) drawChart(canvas, s.session_id);
 
   // Tile border class
   tile.className = "tile" +
@@ -234,6 +258,76 @@ document.getElementById("abort-confirm").addEventListener("click", async () => {
     console.error("Abort request failed", err);
   }
 });
+
+// ── Area chart ───────────────────────────────────────────
+function drawChart(canvas, sessionId) {
+  const hist = chartHistory[sessionId] || [];
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth || 380;
+  const H = 72;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+
+  if (hist.length < 2) {
+    ctx.fillStyle = "rgba(0,255,240,0.04)";
+    ctx.fillRect(0, 0, W, H);
+    if (hist.length === 1) {
+      ctx.beginPath();
+      ctx.arc(W / 2, H / 2, 3, 0, Math.PI * 2);
+      ctx.fillStyle = "#00fff0";
+      ctx.fill();
+    }
+    return;
+  }
+
+  const maxTok = Math.max(...hist.map(p => p.tokens), 1);
+  const pad = { t: 8, b: 8, l: 4, r: 4 };
+  const cW = W - pad.l - pad.r;
+  const cH = H - pad.t - pad.b;
+
+  const px = (i) => pad.l + (i / (hist.length - 1)) * cW;
+  const py = (v) => pad.t + cH - (v / maxTok) * cH;
+
+  // Gradient fill
+  const grad = ctx.createLinearGradient(0, pad.t, 0, H);
+  grad.addColorStop(0, "rgba(0,255,240,0.28)");
+  grad.addColorStop(0.6, "rgba(0,255,240,0.06)");
+  grad.addColorStop(1, "rgba(0,255,240,0)");
+
+  ctx.beginPath();
+  ctx.moveTo(px(0), py(hist[0].tokens));
+  for (let i = 1; i < hist.length; i++) ctx.lineTo(px(i), py(hist[i].tokens));
+  ctx.lineTo(px(hist.length - 1), H - pad.b);
+  ctx.lineTo(px(0), H - pad.b);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.moveTo(px(0), py(hist[0].tokens));
+  for (let i = 1; i < hist.length; i++) ctx.lineTo(px(i), py(hist[i].tokens));
+  ctx.strokeStyle = "#00fff0";
+  ctx.lineWidth = 1.5;
+  ctx.shadowColor = "#00fff0";
+  ctx.shadowBlur = 4;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Dots
+  for (let i = 0; i < hist.length; i++) {
+    ctx.beginPath();
+    ctx.arc(px(i), py(hist[i].tokens), i === hist.length - 1 ? 3.5 : 2, 0, Math.PI * 2);
+    ctx.fillStyle = i === hist.length - 1 ? "#00fff0" : "rgba(0,255,240,0.55)";
+    ctx.shadowColor = "#00fff0";
+    ctx.shadowBlur = i === hist.length - 1 ? 6 : 0;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+}
 
 // ── Helpers ──────────────────────────────────────────────
 function fmt(n) { return Number(n).toLocaleString(); }
