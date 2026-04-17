@@ -1,5 +1,6 @@
 import { NormalizedEvent, SessionState, AppConfig } from "../types";
 import { SessionStore } from "./SessionStore";
+import { loadPersistedSessions, persistSessions } from "./StateStore";
 import { makeLogger } from "../server/logger";
 
 const log = makeLogger("SessionRegistry");
@@ -10,6 +11,7 @@ const STALE_CLOSE_MS = 300_000;
 export class SessionRegistry {
   private sessions = new Map<string, SessionStore>();
   private staleTimer: ReturnType<typeof setInterval>;
+  private saveTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     private cfg: AppConfig,
@@ -17,6 +19,26 @@ export class SessionRegistry {
     private onCheckpoint: (severity: "suggested" | "mandatory", state: SessionState) => void,
   ) {
     this.staleTimer = setInterval(() => this.checkStale(), 15_000);
+    this.loadPersisted();
+  }
+
+  private loadPersisted(): void {
+    for (const state of loadPersistedSessions()) {
+      const store = new SessionStore(this.cfg, state.session_id, state.project_name, state);
+      store.on("state_updated", (s: SessionState) => { this.onUpdate(s); this.scheduleSave(); });
+      store.on("checkpoint_suggested", (s: SessionState) => this.onCheckpoint("suggested", s));
+      store.on("checkpoint_mandatory", (s: SessionState) => this.onCheckpoint("mandatory", s));
+      this.sessions.set(state.session_id, store);
+      log.info("restored session from disk", { session_id: state.session_id, project: state.project_name });
+    }
+  }
+
+  private scheduleSave(): void {
+    if (this.saveTimer) return;
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = null;
+      persistSessions(this.getAllStates());
+    }, 3_000);
   }
 
   route(event: NormalizedEvent): void {
@@ -26,7 +48,7 @@ export class SessionRegistry {
     if (!this.sessions.has(id)) {
       log.info("new session registered", { session_id: id, project_name: name });
       const store = new SessionStore(this.cfg, id, name);
-      store.on("state_updated", (s: SessionState) => this.onUpdate(s));
+      store.on("state_updated", (s: SessionState) => { this.onUpdate(s); this.scheduleSave(); });
       store.on("checkpoint_suggested", (s: SessionState) => this.onCheckpoint("suggested", s));
       store.on("checkpoint_mandatory", (s: SessionState) => this.onCheckpoint("mandatory", s));
       this.sessions.set(id, store);
@@ -50,6 +72,9 @@ export class SessionRegistry {
 
   destroy(): void {
     clearInterval(this.staleTimer);
+    if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = null; }
+    persistSessions(this.getAllStates());
+    log.info("sessions persisted on shutdown");
   }
 
   private checkStale(): void {

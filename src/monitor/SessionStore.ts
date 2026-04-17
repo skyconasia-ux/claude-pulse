@@ -50,9 +50,12 @@ export class SessionStore extends EventEmitter {
     private cfg: AppConfig,
     sessionId?: string,
     projectName?: string,
+    initialState?: SessionState,
   ) {
     super();
-    this.state = makeEmptyState(sessionId ?? uuidv4(), projectName ?? "unknown");
+    this.state = initialState
+      ? { ...initialState }
+      : makeEmptyState(sessionId ?? uuidv4(), projectName ?? "unknown");
   }
 
   apply(event: NormalizedEvent): void {
@@ -72,25 +75,33 @@ export class SessionStore extends EventEmitter {
     }
 
     if (event.type === "token_delta") {
-      const tokenDelta = event.tokens.input + event.tokens.output;
-      this.state.tokens_in += event.tokens.input;
-      this.state.tokens_out += event.tokens.output;
-      this.state.tokens_total += tokenDelta;
-      this.state.cost_usd += event.cost_usd;
-      this.state.last_seen_ms = event.timestamp_ms;
-
-      // Bootstrap event seeds historical turn/tool counts; live events increment by 1
       const bootstrapTurns = event.metadata.bootstrapTurns as number | undefined;
-      if (bootstrapTurns !== undefined) {
-        this.state.turns = Math.max(this.state.turns, bootstrapTurns);
-      } else {
-        this.state.turns += 1;
-      }
       const toolsDelta = (event.metadata.toolsDelta as number | undefined) ?? 0;
-      this.state.tool_calls_total += toolsDelta;
 
-      if (tokenDelta > 0) {
-        this.recentTokenDeltas.push({ tokens: tokenDelta, ts: event.timestamp_ms });
+      if (bootstrapTurns !== undefined) {
+        // Bootstrap: merge with persisted state using Math.max — never overwrite higher values
+        this.state.tokens_in = Math.max(this.state.tokens_in, event.tokens.input);
+        this.state.tokens_out = Math.max(this.state.tokens_out, event.tokens.output);
+        this.state.tokens_total = this.state.tokens_in + this.state.tokens_out;
+        this.state.cost_usd = Math.max(this.state.cost_usd, event.cost_usd);
+        this.state.turns = Math.max(this.state.turns, bootstrapTurns);
+        this.state.tool_calls_total = Math.max(this.state.tool_calls_total, toolsDelta);
+        this.state.last_seen_ms = Math.max(this.state.last_seen_ms, event.timestamp_ms);
+      } else {
+        // Live event: accumulate deltas normally
+        const tokenDelta = event.tokens.input + event.tokens.output;
+        this.state.tokens_in += event.tokens.input;
+        this.state.tokens_out += event.tokens.output;
+        this.state.tokens_total += tokenDelta;
+        this.state.cost_usd += event.cost_usd;
+        this.state.last_seen_ms = event.timestamp_ms;
+        this.state.turns += 1;
+        this.state.tool_calls_total += toolsDelta;
+      }
+
+      const totalDelta = event.tokens.input + event.tokens.output;
+      if (totalDelta > 0) {
+        this.recentTokenDeltas.push({ tokens: totalDelta, ts: event.timestamp_ms });
         if (this.recentTokenDeltas.length > 10) this.recentTokenDeltas.shift();
       }
       this.updatePredictions();
