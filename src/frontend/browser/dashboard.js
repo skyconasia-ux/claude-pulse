@@ -1,135 +1,246 @@
 const WS_URL = `ws://${location.host}`;
+const THRESHOLD = 100000;
+
 let ws;
-let state = {};
-let burnHistory = [];
+let sessions = {};      // keyed by session_id
 let startedAt = null;
 let elapsedTimer = null;
+let pendingAbortId = null;
 
+// ── WebSocket ────────────────────────────────────────────
 function connect() {
   ws = new WebSocket(WS_URL);
-  ws.onmessage = (ev) => handleMessage(JSON.parse(ev.data));
-  ws.onclose = () => setTimeout(connect, 2000);
+  ws.onopen = () => setConnected(true);
+  ws.onclose = () => { setConnected(false); setTimeout(connect, 2000); };
+  ws.onerror = () => setConnected(false);
+  ws.onmessage = (ev) => {
+    try { handleMessage(JSON.parse(ev.data)); } catch { /* ignore malformed */ }
+  };
+}
+
+function setConnected(live) {
+  document.getElementById("conn-dot").className = "conn-dot" + (live ? " live" : "");
+  document.getElementById("conn-label").textContent = live ? "Live" : "Reconnecting...";
 }
 
 function handleMessage(msg) {
-  if (msg.type === "snapshot") {
-    state = msg.state;
-    startedAt = startedAt || Date.now();
-    if (!elapsedTimer) elapsedTimer = setInterval(updateElapsed, 1000);
-    render();
-  } else if (msg.type === "delta") {
-    state = { ...state, ...msg.changes };
-    render();
+  if (msg.type === "sessions_snapshot") {
+    sessions = {};
+    for (const s of msg.sessions) sessions[s.session_id] = s;
+    if (!startedAt) {
+      startedAt = Date.now();
+      elapsedTimer = setInterval(updateElapsed, 1000);
+    }
+    renderAll();
+  } else if (msg.type === "session_updated") {
+    sessions[msg.session.session_id] = msg.session;
+    renderTile(msg.session);
+    updateTopbar();
   } else if (msg.type === "checkpoint_event") {
-    state = msg.state;
-    render();
-    showBanner(msg.severity);
+    sessions[msg.state.session_id] = msg.state;
+    renderTile(msg.state);
+    showBanner(msg.severity, msg.state.project_name);
   }
 }
 
-function fmt(n) { return Number(n).toLocaleString(); }
-function fmtEta(sec) {
-  if (!isFinite(sec) || sec <= 0) return "—";
-  if (sec < 60) return `${Math.round(sec)}s`;
-  return `~${Math.round(sec / 60)}m`;
-}
+// ── Render all ───────────────────────────────────────────
+function renderAll() {
+  const grid = document.getElementById("session-grid");
+  const existing = new Set(Object.keys(sessions));
 
-function render() {
-  const threshold = 100000;
-  const total = state.tokens_total || 0;
-  const pct = Math.min(total / threshold * 100, 100);
-  const left = Math.max(threshold - total, 0);
-
-  document.getElementById("tokens-total").textContent = fmt(total);
-  document.getElementById("tokens-in").textContent = fmt(state.tokens_in || 0);
-  document.getElementById("tokens-out").textContent = fmt(state.tokens_out || 0);
-  document.getElementById("tokens-left").textContent = fmt(left);
-  document.getElementById("progress-fill").style.width = pct.toFixed(1) + "%";
-  document.getElementById("pct-label").textContent = pct.toFixed(0) + "% used";
-  document.getElementById("cost").textContent = "$" + (state.cost_usd || 0).toFixed(4);
-  document.getElementById("turns").textContent = state.turns || 0;
-  document.getElementById("burn-rate").textContent = Math.round(state.burn_rate_per_sec || 0);
-  document.getElementById("eta").textContent = fmtEta(state.eta_to_threshold_sec);
-
-  const level = state.alert_level || "green";
-  const alertBox = document.getElementById("alert-box");
-  alertBox.className = `stat-box alert ${level}`;
-  document.getElementById("alert-level").textContent =
-    `● ${level.toUpperCase()}`;
-
-  document.getElementById("activity").textContent =
-    state.activity_state === "active" ? "● ACTIVE" : "● IDLE";
-  document.getElementById("activity").style.color =
-    state.activity_state === "active" ? "var(--green)" : "var(--dim)";
-
-  document.getElementById("capacity-status").textContent =
-    `● ${level === "green" ? "Capacity safe" : level === "yellow" ? "Approaching limit" : "CRITICAL"} — ${fmt(left)} tokens remaining`;
-
-  const turnsToNext = Math.max(0, 20 - (state.turns || 0));
-  document.getElementById("checkpoint-status").textContent =
-    turnsToNext > 0 ? `⚠ Checkpoint in ${turnsToNext} turns (turn 20)` : "⚠ Checkpoint due";
-
-  // Burn chart
-  if (state.tokens_total !== undefined) {
-    burnHistory.push(total);
-    if (burnHistory.length > 30) burnHistory.shift();
-    drawChart();
+  // Remove tiles for sessions that no longer exist
+  for (const el of grid.querySelectorAll(".tile")) {
+    if (!existing.has(el.dataset.id)) el.remove();
   }
+
+  // Add/update tiles
+  for (const s of Object.values(sessions)) renderTile(s);
+  updateTopbar();
+  updateEmptyState();
 }
 
-function drawChart() {
-  const canvas = document.getElementById("burn-chart");
-  const ctx = canvas.getContext("2d");
-  canvas.width = canvas.offsetWidth;
-  canvas.height = 70;
-  const w = canvas.width, h = canvas.height;
-  const max = Math.max(...burnHistory, 1);
-  ctx.clearRect(0, 0, w, h);
-  if (burnHistory.length < 2) return;
-  const step = w / (burnHistory.length - 1);
-  const pts = burnHistory.map((v, i) => [i * step, h - (v / max) * (h - 8)]);
-
-  // Gradient fill
-  const grad = ctx.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, "rgba(0,255,240,0.3)");
-  grad.addColorStop(1, "rgba(0,255,240,0.01)");
-  ctx.beginPath();
-  ctx.moveTo(pts[0][0], pts[0][1]);
-  for (const [x, y] of pts.slice(1)) ctx.lineTo(x, y);
-  ctx.lineTo(w, h); ctx.lineTo(0, h); ctx.closePath();
-  ctx.fillStyle = grad; ctx.fill();
-
-  // Line
-  const lineGrad = ctx.createLinearGradient(0, 0, w, 0);
-  lineGrad.addColorStop(0, "#00ff88");
-  lineGrad.addColorStop(0.5, "#00fff0");
-  lineGrad.addColorStop(1, "#bf00ff");
-  ctx.beginPath();
-  ctx.moveTo(pts[0][0], pts[0][1]);
-  for (const [x, y] of pts.slice(1)) ctx.lineTo(x, y);
-  ctx.strokeStyle = lineGrad; ctx.lineWidth = 2; ctx.stroke();
-
-  // Dots
-  for (const [x, y] of pts) {
-    ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(0,255,240,0.6)"; ctx.fill();
+function renderTile(state) {
+  const grid = document.getElementById("session-grid");
+  let tile = grid.querySelector(`[data-id="${CSS.escape(state.session_id)}"]`);
+  if (!tile) {
+    tile = buildTile(state.session_id);
+    grid.appendChild(tile);
   }
+  updateTile(tile, state);
 }
 
-function showBanner(severity) {
-  const banner = document.getElementById("banner");
-  banner.textContent = severity === "mandatory" ? "⚠ CHECKPOINT CREATED" : "● RECOMMEND CHECKPOINT";
-  banner.className = `banner ${severity}`;
-  banner.style.display = "block";
-  setTimeout(() => { banner.style.display = "none"; }, 4000);
+function buildTile(sessionId) {
+  const tile = document.createElement("div");
+  tile.className = "tile";
+  tile.dataset.id = sessionId;
+  tile.innerHTML = `
+    <div class="tile-header">
+      <div class="tile-name-wrap">
+        <div class="tile-name" data-field="name"></div>
+        <div class="tile-session-id" data-field="sid"></div>
+      </div>
+      <div class="tile-badges">
+        <span class="badge" data-field="lifecycle"></span>
+        <span class="badge badge-stale" data-field="stale" style="display:none">STALE</span>
+      </div>
+    </div>
+    <div>
+      <div class="token-hero-label">TOTAL TOKENS</div>
+      <div class="token-hero-value" data-field="total">0</div>
+      <div class="token-breakdown">
+        <div class="seg seg-in">
+          <div class="seg-label">IN</div>
+          <div class="seg-val" data-field="in">0</div>
+        </div>
+        <div class="seg seg-out">
+          <div class="seg-label">OUT</div>
+          <div class="seg-val" data-field="out">0</div>
+        </div>
+        <div class="seg seg-left">
+          <div class="seg-label">LEFT</div>
+          <div class="seg-val" data-field="left">—</div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="progress-meta">
+        <span>0</span>
+        <span data-field="pct">0%</span>
+        <span>${fmt(THRESHOLD)}</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" data-field="bar" style="width:0%"></div></div>
+    </div>
+    <div class="stats-row">
+      <div class="stat stat-cost"><div class="stat-label">COST</div><div class="stat-value" data-field="cost">$0.00</div></div>
+      <div class="stat stat-turns"><div class="stat-label">TURNS</div><div class="stat-value" data-field="turns">0</div></div>
+      <div class="stat stat-burn"><div class="stat-label">BURN/S</div><div class="stat-value" data-field="burn">0</div></div>
+      <div class="stat stat-eta"><div class="stat-label">ETA</div><div class="stat-value" data-field="eta">—</div></div>
+    </div>
+    <div class="tile-footer">
+      <span class="alert-pill" data-field="alert">● GREEN</span>
+      <button class="btn-abort" title="Code 10 Abort" data-sid="${sessionId}">Abort</button>
+    </div>
+  `;
+  tile.querySelector(".btn-abort").addEventListener("click", (e) => {
+    const sid = e.currentTarget.dataset.sid;
+    openAbortConfirm(sid);
+  });
+  return tile;
+}
+
+function updateTile(tile, s) {
+  const total = s.tokens_total || 0;
+  const pct = Math.min(total / THRESHOLD * 100, 100);
+  const left = Math.max(THRESHOLD - total, 0);
+
+  set(tile, "name", s.project_name || s.session_id.slice(0, 12));
+  set(tile, "sid", s.session_id.slice(0, 16) + (s.session_id.length > 16 ? "…" : ""));
+  set(tile, "total", fmt(total));
+  set(tile, "in", fmt(s.tokens_in || 0));
+  set(tile, "out", fmt(s.tokens_out || 0));
+  set(tile, "left", fmt(left));
+  set(tile, "pct", pct.toFixed(0) + "% used");
+  tile.querySelector("[data-field='bar']").style.width = pct.toFixed(1) + "%";
+  set(tile, "cost", "$" + (s.cost_usd || 0).toFixed(4));
+  set(tile, "turns", s.turns || 0);
+  set(tile, "burn", Math.round(s.burn_rate_per_sec || 0));
+  set(tile, "eta", fmtEta(s.eta_to_threshold_sec));
+
+  // Lifecycle badge
+  const lc = s.lifecycle || "unknown";
+  const lcEl = tile.querySelector("[data-field='lifecycle']");
+  lcEl.className = `badge badge-${lc}`;
+  lcEl.textContent = lc.replace(/_/g, " ").toUpperCase();
+
+  // Stale badge
+  tile.querySelector("[data-field='stale']").style.display = s.is_stale ? "" : "none";
+
+  // Alert level
+  const alertEl = tile.querySelector("[data-field='alert']");
+  const level = s.alert_level || "green";
+  alertEl.className = `alert-pill alert-${level}`;
+  alertEl.textContent = `● ${level.toUpperCase()}`;
+
+  // Tile border class
+  tile.className = "tile" +
+    (s.is_stale ? " stale" : "") +
+    (level === "yellow" ? " alert-yellow" : "") +
+    (level === "red" ? " alert-red" : "");
+  tile.dataset.id = s.session_id;
+}
+
+function set(tile, field, val) {
+  const el = tile.querySelector(`[data-field="${field}"]`);
+  if (el) el.textContent = val;
+}
+
+// ── Topbar ───────────────────────────────────────────────
+function updateTopbar() {
+  const all = Object.values(sessions);
+  const active = all.filter(s => !s.is_stale && s.lifecycle !== "closed" && s.lifecycle !== "stopped");
+  document.getElementById("session-count").textContent =
+    active.length + " session" + (active.length !== 1 ? "s" : "") +
+    (all.length > active.length ? ` (${all.length - active.length} closed)` : "");
+}
+
+function updateEmptyState() {
+  const empty = Object.keys(sessions).length === 0;
+  document.getElementById("session-grid").style.display = empty ? "none" : "";
+  document.getElementById("empty-state").style.display = empty ? "block" : "none";
 }
 
 function updateElapsed() {
   if (!startedAt) return;
   const s = Math.floor((Date.now() - startedAt) / 1000);
   const m = Math.floor(s / 60), sec = s % 60;
-  document.getElementById("elapsed").textContent =
-    m > 0 ? `${m}m ${sec}s elapsed` : `${sec}s elapsed`;
+  document.getElementById("elapsed").textContent = m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+}
+
+// ── Checkpoint banner ────────────────────────────────────
+function showBanner(severity, projectName) {
+  const banner = document.getElementById("banner");
+  banner.textContent = severity === "mandatory"
+    ? `⚠ CHECKPOINT — ${projectName}`
+    : `● RECOMMEND CHECKPOINT — ${projectName}`;
+  banner.className = `banner ${severity}`;
+  banner.style.display = "block";
+  setTimeout(() => { banner.style.display = "none"; }, 4000);
+}
+
+// ── Abort ────────────────────────────────────────────────
+function openAbortConfirm(sessionId) {
+  pendingAbortId = sessionId;
+  const s = sessions[sessionId];
+  const name = s ? s.project_name : sessionId.slice(0, 16);
+  document.getElementById("abort-confirm-text").textContent =
+    `Abort session "${name}"?\nThis marks the session as stopped in the monitor.`;
+  document.getElementById("abort-overlay").classList.add("open");
+}
+
+document.getElementById("abort-cancel").addEventListener("click", () => {
+  document.getElementById("abort-overlay").classList.remove("open");
+  pendingAbortId = null;
+});
+
+document.getElementById("abort-confirm").addEventListener("click", async () => {
+  if (!pendingAbortId) return;
+  const id = pendingAbortId;
+  document.getElementById("abort-overlay").classList.remove("open");
+  pendingAbortId = null;
+  try {
+    const res = await fetch(`/abort/${encodeURIComponent(id)}`, { method: "POST" });
+    if (!res.ok) console.warn("Abort returned", res.status);
+  } catch (err) {
+    console.error("Abort request failed", err);
+  }
+});
+
+// ── Helpers ──────────────────────────────────────────────
+function fmt(n) { return Number(n).toLocaleString(); }
+function fmtEta(sec) {
+  if (!isFinite(sec) || sec <= 0) return "—";
+  if (sec < 60) return `${Math.round(sec)}s`;
+  return `~${Math.round(sec / 60)}m`;
 }
 
 connect();

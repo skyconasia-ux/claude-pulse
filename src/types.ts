@@ -1,4 +1,11 @@
+export type LifecycleState =
+  | "not_launched" | "running" | "thinking" | "tool_use"
+  | "idle" | "waiting" | "cancelled" | "closed"
+  | "ctrl_c" | "stopped" | "unknown";
+
 export interface NormalizedEvent {
+  session_id?: string;
+  project_name?: string;
   source: "hook" | "otel";
   type: "session_start" | "session_end" | "tool_use" | "turn_end" | "notification";
   tokens: { input: number; output: number };
@@ -9,6 +16,10 @@ export interface NormalizedEvent {
 
 export interface SessionState {
   session_id: string;
+  project_name: string;
+  lifecycle: LifecycleState;
+  last_seen_ms: number;
+  is_stale: boolean;
   started_at: number;
   turns: number;
   tokens_total: number;
@@ -24,8 +35,8 @@ export interface SessionState {
 }
 
 export type WsMessage =
-  | { type: "snapshot"; state: SessionState }
-  | { type: "delta"; changes: Partial<SessionState> }
+  | { type: "sessions_snapshot"; sessions: SessionState[] }
+  | { type: "session_updated"; session: SessionState }
   | { type: "checkpoint_event"; severity: "suggested" | "mandatory"; state: SessionState };
 
 export interface AppConfig {

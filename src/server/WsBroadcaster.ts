@@ -7,31 +7,33 @@ const log = makeLogger("WsBroadcaster");
 
 export class WsBroadcaster {
   private wss: WebSocketServer;
-  private currentState: SessionState | null = null;
+  private sessions: SessionState[] = [];
 
   constructor(server: Server) {
     this.wss = new WebSocketServer({ server });
     this.wss.on("connection", (ws: WebSocket) => {
       log.info("client connected", { clients: this.wss.clients.size });
-      if (this.currentState) {
-        const msg: WsMessage = { type: "snapshot", state: this.currentState };
+      const msg: WsMessage = { type: "sessions_snapshot", sessions: this.sessions };
+      try {
         ws.send(JSON.stringify(msg));
-        log.debug("snapshot sent to new client");
+        log.debug("sessions_snapshot sent to new client", { session_count: this.sessions.length });
+      } catch (err) {
+        log.error("failed to send snapshot", { message: (err as Error).message });
       }
       ws.on("close", () => log.info("client disconnected", { clients: this.wss.clients.size - 1 }));
       ws.on("error", (err) => log.error("client socket error", { message: err.message }));
     });
   }
 
-  setState(state: SessionState): void {
-    this.currentState = state;
+  setSession(state: SessionState): void {
+    const idx = this.sessions.findIndex(s => s.session_id === state.session_id);
+    if (idx >= 0) this.sessions[idx] = state;
+    else this.sessions.push(state);
   }
 
-  broadcastDelta(changes: Partial<SessionState>): void {
-    if (this.currentState) {
-      this.currentState = { ...this.currentState, ...changes };
-    }
-    const msg: WsMessage = { type: "delta", changes };
+  broadcastSessionUpdate(state: SessionState): void {
+    this.setSession(state);
+    const msg: WsMessage = { type: "session_updated", session: state };
     this.broadcast(msg);
   }
 

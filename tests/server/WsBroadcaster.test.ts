@@ -8,6 +8,10 @@ import { SessionState } from "../../src/types";
 function makeState(overrides: Partial<SessionState> = {}): SessionState {
   return {
     session_id: "test-session",
+    project_name: "test-project",
+    lifecycle: "idle",
+    last_seen_ms: Date.now(),
+    is_stale: false,
     started_at: 1000,
     turns: 0,
     tokens_total: 0,
@@ -40,38 +44,38 @@ describe("WsBroadcaster", () => {
     await new Promise<void>(r => server.close(() => r()));
   });
 
-  it("sends full snapshot to client on connect", async () => {
+  it("sends sessions_snapshot to client on connect", async () => {
     const state = makeState({ tokens_total: 500 });
-    broadcaster.setState(state);
+    broadcaster.setSession(state);
     const ws = new WebSocket(`ws://localhost:${port}`);
     const msg = await new Promise<string>(r => ws.on("message", d => r(d.toString())));
     const parsed = JSON.parse(msg);
-    expect(parsed.type).toBe("snapshot");
-    expect(parsed.state.tokens_total).toBe(500);
+    expect(parsed.type).toBe("sessions_snapshot");
+    expect(parsed.sessions[0].tokens_total).toBe(500);
     ws.close();
   });
 
-  it("broadcasts delta to connected clients", async () => {
+  it("broadcasts session_updated to connected clients", async () => {
     const state = makeState();
-    broadcaster.setState(state);
+    broadcaster.setSession(state);
     const ws = new WebSocket(`ws://localhost:${port}`);
     await new Promise<void>(r => ws.once("message", () => r())); // consume snapshot
 
-    const deltaPromise = new Promise<string>(r => ws.on("message", d => r(d.toString())));
-    broadcaster.broadcastDelta({ tokens_total: 999 });
-    const parsed = JSON.parse(await deltaPromise);
-    expect(parsed.type).toBe("delta");
-    expect(parsed.changes.tokens_total).toBe(999);
+    const updatePromise = new Promise<string>(r => ws.on("message", d => r(d.toString())));
+    broadcaster.broadcastSessionUpdate({ ...state, tokens_total: 999 });
+    const parsed = JSON.parse(await updatePromise);
+    expect(parsed.type).toBe("session_updated");
+    expect(parsed.session.tokens_total).toBe(999);
     ws.close();
   });
 
-  it("sends full snapshot to reconnecting client", async () => {
+  it("sends sessions_snapshot to reconnecting client", async () => {
     const state = makeState({ turns: 5 });
-    broadcaster.setState(state);
+    broadcaster.setSession(state);
     const ws = new WebSocket(`ws://localhost:${port}`);
     const msg = await new Promise<string>(r => ws.on("message", d => r(d.toString())));
     const parsed = JSON.parse(msg);
-    expect(parsed.state.turns).toBe(5);
+    expect(parsed.sessions[0].turns).toBe(5);
     ws.close();
   });
 });

@@ -1,5 +1,5 @@
 import { EventEmitter } from "events";
-import { NormalizedEvent, SessionState, AppConfig } from "../types";
+import { NormalizedEvent, SessionState, AppConfig, LifecycleState } from "../types";
 import { v4 as uuidv4 } from "uuid";
 import { makeLogger } from "../server/logger";
 
@@ -8,9 +8,13 @@ const log = makeLogger("SessionStore");
 const SOFT_TURN = 10;
 const CHECKPOINT_COOLDOWN_TURNS = 3;
 
-function makeEmptyState(): SessionState {
+function makeEmptyState(sessionId: string, projectName: string): SessionState {
   return {
-    session_id: uuidv4(),
+    session_id: sessionId,
+    project_name: projectName,
+    lifecycle: "running",
+    last_seen_ms: Date.now(),
+    is_stale: false,
     started_at: Date.now(),
     turns: 0,
     tokens_total: 0,
@@ -26,6 +30,14 @@ function makeEmptyState(): SessionState {
   };
 }
 
+function eventTypeToLifecycle(type: NormalizedEvent["type"]): LifecycleState {
+  if (type === "tool_use") return "tool_use";
+  if (type === "turn_end") return "idle";
+  if (type === "session_start") return "running";
+  if (type === "session_end") return "closed";
+  return "running";
+}
+
 export class SessionStore extends EventEmitter {
   private state: SessionState;
   private recentTokenDeltas: Array<{ tokens: number; ts: number }> = [];
@@ -33,9 +45,13 @@ export class SessionStore extends EventEmitter {
   private checkpointSuggestedFiredForTurn = -1;
   private checkpointMandatoryFiredForTurn = -1;
 
-  constructor(private cfg: AppConfig) {
+  constructor(
+    private cfg: AppConfig,
+    sessionId?: string,
+    projectName?: string,
+  ) {
     super();
-    this.state = makeEmptyState();
+    this.state = makeEmptyState(sessionId ?? uuidv4(), projectName ?? "unknown");
   }
 
   apply(event: NormalizedEvent): void {
@@ -46,7 +62,7 @@ export class SessionStore extends EventEmitter {
     }
 
     if (event.type === "session_start") {
-      this.state = makeEmptyState();
+      this.state = makeEmptyState(this.state.session_id, this.state.project_name);
       this.recentTokenDeltas = [];
       this.checkpointSuggestedFiredForTurn = -1;
       this.checkpointMandatoryFiredForTurn = -1;
@@ -56,6 +72,8 @@ export class SessionStore extends EventEmitter {
 
     if (event.type === "session_end") {
       this.state.activity_state = "idle";
+      this.state.lifecycle = "closed";
+      this.state.last_seen_ms = event.timestamp_ms;
       this.emit("state_updated", { ...this.state });
       return;
     }
@@ -65,6 +83,9 @@ export class SessionStore extends EventEmitter {
     this.state.tokens_out += event.tokens.output;
     this.state.tokens_total += tokenDelta;
     this.state.cost_usd += event.cost_usd;
+    this.state.lifecycle = eventTypeToLifecycle(event.type);
+    this.state.last_seen_ms = event.timestamp_ms;
+    this.state.is_stale = false;
 
     if (event.type === "turn_end") {
       this.state.turns += 1;
@@ -75,7 +96,6 @@ export class SessionStore extends EventEmitter {
 
     this.lastEventTs = event.timestamp_ms;
 
-    // Rolling burn rate (last 10 deltas)
     this.recentTokenDeltas.push({ tokens: tokenDelta, ts: event.timestamp_ms });
     if (this.recentTokenDeltas.length > 10) this.recentTokenDeltas.shift();
     this.updatePredictions();
@@ -83,6 +103,18 @@ export class SessionStore extends EventEmitter {
     this.evaluateCheckpoints();
 
     this.emit("state_updated", { ...this.state });
+  }
+
+  setLifecycle(lifecycle: LifecycleState): void {
+    this.state.lifecycle = lifecycle;
+    if (lifecycle === "stopped" || lifecycle === "closed") {
+      this.state.activity_state = "idle";
+    }
+  }
+
+  setStale(stale: boolean): void {
+    this.state.is_stale = stale;
+    if (stale) this.state.lifecycle = "closed";
   }
 
   private updatePredictions(): void {
@@ -108,14 +140,11 @@ export class SessionStore extends EventEmitter {
 
   private evaluateCheckpoints(): void {
     const { turns, tokens_total } = this.state;
-    // Cooldown is relative to the turn when the last checkpoint was fired.
-    // If no suggested checkpoint has ever fired (firedForTurn === -1), skip cooldown.
     const lastSuggestedTurn = this.checkpointSuggestedFiredForTurn;
     const cooldownOk = lastSuggestedTurn === -1 ||
       turns - lastSuggestedTurn >= CHECKPOINT_COOLDOWN_TURNS;
     const tokenPct = tokens_total / this.cfg.token_threshold;
 
-    // checkpoint_mandatory — always fires regardless of cooldown
     if (
       (tokenPct >= 0.9 || turns >= this.cfg.turn_threshold) &&
       turns !== this.checkpointMandatoryFiredForTurn
@@ -127,7 +156,6 @@ export class SessionStore extends EventEmitter {
       return;
     }
 
-    // checkpoint_suggested — respects cooldown
     if (
       cooldownOk &&
       (tokenPct >= 0.7 || turns >= SOFT_TURN) &&
