@@ -8,11 +8,14 @@ const log = makeLogger("WsBroadcaster");
 export class WsBroadcaster {
   private wss: WebSocketServer;
   private sessions: SessionState[] = [];
+  private noClientsCallback?: () => void;
+  private newClientCallback?: () => void;
 
   constructor(server: Server) {
     this.wss = new WebSocketServer({ server });
     this.wss.on("connection", (ws: WebSocket) => {
       log.info("client connected", { clients: this.wss.clients.size });
+      this.newClientCallback?.();
       const msg: WsMessage = { type: "sessions_snapshot", sessions: this.sessions };
       try {
         ws.send(JSON.stringify(msg));
@@ -20,9 +23,23 @@ export class WsBroadcaster {
       } catch (err) {
         log.error("failed to send snapshot", { message: (err as Error).message });
       }
-      ws.on("close", () => log.info("client disconnected", { clients: this.wss.clients.size - 1 }));
+      ws.on("close", () => {
+        log.info("client disconnected", { clients: this.wss.clients.size - 1 });
+        // setImmediate ensures the ws library has removed the client from wss.clients before we check
+        setImmediate(() => {
+          if (this.wss.clients.size === 0) this.noClientsCallback?.();
+        });
+      });
       ws.on("error", (err) => log.error("client socket error", { message: err.message }));
     });
+  }
+
+  onNoClients(cb: () => void): void { this.noClientsCallback = cb; }
+  onNewClient(cb: () => void): void { this.newClientCallback = cb; }
+
+  close(): void {
+    for (const client of this.wss.clients) client.close();
+    this.wss.close();
   }
 
   setSession(state: SessionState): void {

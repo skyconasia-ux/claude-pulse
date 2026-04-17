@@ -29,6 +29,35 @@ const registry = new SessionRegistry(
 
 eventBus.on("event", (e) => registry.route(e));
 
+const SHUTDOWN_GRACE_MS = 3_000;
+let shutdownTimer: ReturnType<typeof setTimeout> | null = null;
+let isShuttingDown = false;
+
+function shutdown() {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  log.info("shutting down cleanly");
+  console.log("\n[LiveVisualUsage] Shutting down — port released.");
+  registry.destroy();
+  broadcaster.close();
+  server.close(() => { log.info("port released"); process.exit(0); });
+  setTimeout(() => process.exit(0), 2000).unref();
+}
+
+broadcaster.onNoClients(() => {
+  if (shutdownTimer || isShuttingDown) return;
+  log.info("no clients — shutting down in 3s");
+  console.log("[LiveVisualUsage] Browser closed — shutting down in 3s...");
+  shutdownTimer = setTimeout(shutdown, SHUTDOWN_GRACE_MS);
+});
+
+broadcaster.onNewClient(() => {
+  if (shutdownTimer) { clearTimeout(shutdownTimer); shutdownTimer = null; }
+});
+
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
+
 app.post("/abort/:sessionId", (req: Request, res: Response) => {
   const sessionId = req.params["sessionId"] as string;
   const ok = registry.markStopped(sessionId);
@@ -65,6 +94,7 @@ async function main() {
     if (choice === "browser" || choice === "both") {
       console.log(`[LiveVisualUsage] Browser dashboard → http://localhost:${config.server_port}/dashboard`);
     }
+    console.log(`[LiveVisualUsage] Active Claude sessions will auto-register on first hook event.`);
     if (choice === "terminal" || choice === "both") {
       console.log(`[LiveVisualUsage] Starting terminal dashboard...`);
       const termPath = "../frontend/terminal/index";
