@@ -71,6 +71,24 @@ export class SessionStore extends EventEmitter {
       return;
     }
 
+    if (event.type === "token_delta") {
+      const tokenDelta = event.tokens.input + event.tokens.output;
+      this.state.tokens_in += event.tokens.input;
+      this.state.tokens_out += event.tokens.output;
+      this.state.tokens_total += tokenDelta;
+      this.state.cost_usd += event.cost_usd;
+      this.state.last_seen_ms = event.timestamp_ms;
+      if (tokenDelta > 0) {
+        this.recentTokenDeltas.push({ tokens: tokenDelta, ts: event.timestamp_ms });
+        if (this.recentTokenDeltas.length > 10) this.recentTokenDeltas.shift();
+      }
+      this.updatePredictions();
+      this.updateAlertLevel();
+      this.evaluateCheckpoints();
+      this.emit("state_updated", { ...this.state });
+      return;
+    }
+
     if (event.type === "session_end") {
       this.state.activity_state = "idle";
       this.state.lifecycle = "closed";

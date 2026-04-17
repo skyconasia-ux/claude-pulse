@@ -156,8 +156,9 @@ function buildTile(sessionId) {
     <div class="stats-row">
       <div class="stat stat-cost"><div class="stat-label">COST</div><div class="stat-value" data-field="cost">$0.00</div></div>
       <div class="stat stat-turns"><div class="stat-label">TURNS</div><div class="stat-value" data-field="turns">0</div></div>
-      <div class="stat stat-tools"><div class="stat-label">TOOLS</div><div class="stat-value" data-field="tools">0</div></div>
+      <div class="stat stat-burn"><div class="stat-label">BURN/S</div><div class="stat-value" data-field="burn">0</div></div>
       <div class="stat stat-eta"><div class="stat-label">ETA</div><div class="stat-value" data-field="eta">—</div></div>
+      <div class="stat stat-tools"><div class="stat-label">TOOLS</div><div class="stat-value" data-field="tools">0</div></div>
     </div>
     <div class="tile-footer">
       <span class="alert-pill" data-field="alert">● GREEN</span>
@@ -186,8 +187,9 @@ function updateTile(tile, s) {
   tile.querySelector("[data-field='bar']").style.width = pct.toFixed(1) + "%";
   set(tile, "cost", "$" + (s.cost_usd || 0).toFixed(4));
   set(tile, "turns", s.turns || 0);
-  set(tile, "tools", s.tool_calls_total || 0);
+  set(tile, "burn", Math.round(s.burn_rate_per_sec || 0));
   set(tile, "eta", fmtEta(s.eta_to_threshold_sec));
+  set(tile, "tools", s.tool_calls_total || 0);
 
   // Lifecycle badge
   const lc = s.lifecycle || "unknown";

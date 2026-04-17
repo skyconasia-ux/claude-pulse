@@ -10,12 +10,12 @@ export function createHooksRouter(): Router {
   router.post("/hook", (req: Request, res: Response) => {
     const body = req.body as Record<string, unknown>;
     if (!body.hook_event_name) {
-      log.warn("POST /hook rejected: missing hook_event_name");
+      log.warn("POST /hook rejected: missing hook_event_name", { keys: Object.keys(body), body });
       res.status(400).json({ error: "missing hook_event_name" });
       return;
     }
     const event = normalizeHookPayload(body);
-    log.debug("POST /hook received", { hook_event_name: body.hook_event_name as string, type: event.type });
+    log.info("POST /hook", { hook_event_name: body.hook_event_name as string, keys: Object.keys(body), has_usage: "usage" in body, usage: body.usage ?? null });
     eventBus.emit("event", event);
     res.status(200).json({ ok: true });
   });

@@ -60,6 +60,7 @@ let localState: SessionState = {
   is_stale: false,
   started_at: Date.now(),
   turns: 0,
+  tool_calls_total: 0,
   tokens_total: 0,
   tokens_in: 0,
   tokens_out: 0,

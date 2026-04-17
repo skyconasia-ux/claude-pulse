@@ -8,6 +8,7 @@ import { SessionRegistry } from "../monitor/SessionRegistry";
 import { WsBroadcaster } from "./WsBroadcaster";
 import { createHooksRouter } from "../wrapper/HooksAdapter";
 import { createOtelRouter } from "../wrapper/OtelAdapter";
+import { JournalWatcher } from "../wrapper/JournalWatcher";
 import { makeLogger } from "./logger";
 import path from "path";
 
@@ -37,6 +38,9 @@ const registry = new SessionRegistry(
 
 eventBus.on("event", (e) => registry.route(e));
 
+const journalWatcher = new JournalWatcher();
+journalWatcher.start();
+
 const SHUTDOWN_GRACE_MS = 3_000;
 let shutdownTimer: ReturnType<typeof setTimeout> | null = null;
 let isShuttingDown = false;
@@ -46,6 +50,7 @@ function shutdown() {
   isShuttingDown = true;
   log.info("shutting down cleanly");
   console.log("\n[LiveVisualUsage] Shutting down — port released.");
+  journalWatcher.stop();
   registry.destroy();
   broadcaster.close();
   server.close(() => { log.info("port released"); process.exit(0); });

@@ -6,8 +6,8 @@ export type LifecycleState =
 export interface NormalizedEvent {
   session_id?: string;
   project_name?: string;
-  source: "hook" | "otel";
-  type: "session_start" | "session_end" | "tool_use" | "turn_end" | "notification";
+  source: "hook" | "otel" | "journal";
+  type: "session_start" | "session_end" | "tool_use" | "turn_end" | "notification" | "token_delta";
   tokens: { input: number; output: number };
   cost_usd: number;
   timestamp_ms: number;
