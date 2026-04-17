@@ -14,6 +14,7 @@ function makeState(overrides: Partial<SessionState> = {}): SessionState {
     is_stale: false,
     started_at: 1000,
     turns: 0,
+    tool_calls_total: 0,
     tokens_total: 0,
     tokens_in: 0,
     tokens_out: 0,

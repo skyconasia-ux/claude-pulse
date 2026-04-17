@@ -17,6 +17,7 @@ function makeEmptyState(sessionId: string, projectName: string): SessionState {
     is_stale: false,
     started_at: Date.now(),
     turns: 0,
+    tool_calls_total: 0,
     tokens_total: 0,
     tokens_in: 0,
     tokens_out: 0,
@@ -55,8 +56,8 @@ export class SessionStore extends EventEmitter {
   }
 
   apply(event: NormalizedEvent): void {
-    // Drop out-of-order events older than 5s within current session
-    if (event.timestamp_ms < this.lastEventTs - 5000) {
+    // Drop out-of-order events older than 60s — avoids false drops when hook timestamps lag real-time
+    if (event.timestamp_ms < this.lastEventTs - 60_000) {
       log.warn("dropped out-of-order event", { type: event.type, timestamp_ms: event.timestamp_ms });
       return;
     }
@@ -92,6 +93,9 @@ export class SessionStore extends EventEmitter {
       this.state.activity_state = "idle";
     } else {
       this.state.activity_state = "active";
+    }
+    if (event.type === "tool_use") {
+      this.state.tool_calls_total += 1;
     }
 
     this.lastEventTs = event.timestamp_ms;

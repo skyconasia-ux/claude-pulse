@@ -24,6 +24,13 @@
     .topbar-right { display: flex; gap: 24px; align-items: center; font-size: 12px; color: var(--dim); }
     .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gray); display: inline-block; margin-right: 6px; }
     .conn-dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .rate-group { display: flex; gap: 4px; align-items: center; }
+    .rate-label { font-size: 10px; letter-spacing: 1px; color: var(--dim); margin-right: 4px; }
+    .rate-btn { background: transparent; border: 1px solid rgba(0,255,240,0.15); color: var(--dim); font-family: var(--font); font-size: 10px; letter-spacing: 1px; padding: 3px 9px; border-radius: 3px; cursor: pointer; transition: all 0.15s; }
+    .rate-btn:hover { border-color: rgba(0,255,240,0.4); color: var(--cyan); }
+    .rate-btn.active { background: rgba(0,255,240,0.1); border-color: rgba(0,255,240,0.5); color: var(--cyan); }
+    .rate-btn.refresh-btn { border-color: rgba(191,0,255,0.3); color: rgba(191,0,255,0.7); }
+    .rate-btn.refresh-btn:hover { border-color: var(--purple); color: var(--purple); }
 
     #session-grid {
       display: grid;
@@ -130,6 +137,14 @@
   <div class="topbar">
     <span class="logo">⬡ LiveVisualUsage</span>
     <div class="topbar-right">
+      <div class="rate-group">
+        <span class="rate-label">UPDATE</span>
+        <button class="rate-btn" data-rate="high">High</button>
+        <button class="rate-btn" data-rate="normal">Normal</button>
+        <button class="rate-btn" data-rate="low">Low</button>
+        <button class="rate-btn" data-rate="paused">Paused</button>
+        <button class="rate-btn refresh-btn" data-rate="refresh">↺ Now</button>
+      </div>
       <span><span class="conn-dot" id="conn-dot"></span><span id="conn-label">Connecting...</span></span>
       <span id="session-count">0 sessions</span>
       <span id="elapsed">0s</span>

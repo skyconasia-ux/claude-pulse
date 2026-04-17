@@ -3,10 +3,38 @@ const THRESHOLD = 100000;
 
 let ws;
 let sessions = {};        // keyed by session_id
-let chartHistory = {};    // session_id → [{turn, tokens}]
+let chartHistory = {};    // session_id → [{turn, tokens, toolCalls}]
+let turnToolCalls = {};   // session_id → tool call count for current in-progress turn
 let startedAt = null;
 let elapsedTimer = null;
 let pendingAbortId = null;
+
+// ── Refresh rate ─────────────────────────────────────────
+let refreshMode = "high";   // high | normal | low | paused
+const REFRESH_INTERVALS = { high: 0, normal: 5000, low: 30000, paused: null };
+let refreshTimer = null;
+let pendingRender = false;
+
+function setRefreshMode(mode) {
+  refreshMode = mode;
+  document.querySelectorAll(".rate-btn").forEach(b => {
+    b.classList.toggle("active", b.dataset.rate === mode);
+  });
+  if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+  if (mode === "normal" || mode === "low") {
+    refreshTimer = setInterval(flushRender, REFRESH_INTERVALS[mode]);
+  }
+}
+
+function scheduleRender() {
+  if (refreshMode === "high") { renderAll(); return; }
+  if (refreshMode === "paused") { pendingRender = true; return; }
+  pendingRender = true;
+}
+
+function flushRender() {
+  if (pendingRender) { renderAll(); pendingRender = false; }
+}
 
 // ── WebSocket ────────────────────────────────────────────
 function connect() {
@@ -25,15 +53,25 @@ function setConnected(live) {
 }
 
 function recordHistory(s) {
-  if (!chartHistory[s.session_id]) chartHistory[s.session_id] = [];
-  const hist = chartHistory[s.session_id];
+  const sid = s.session_id;
+  if (!chartHistory[sid]) chartHistory[sid] = [];
+  if (!turnToolCalls[sid]) turnToolCalls[sid] = 0;
+
+  // Count tool_use lifecycle updates as tool calls this turn
+  if (s.lifecycle === "tool_use") turnToolCalls[sid]++;
+
+  const hist = chartHistory[sid];
   const turn = s.turns || 0;
   const last = hist[hist.length - 1];
+
   if (!last || last.turn !== turn) {
-    hist.push({ turn, tokens: s.tokens_total || 0 });
+    if (last) last.toolCalls = turnToolCalls[sid];  // seal previous turn's count
+    hist.push({ turn, tokens: s.tokens_total || 0, toolCalls: 0 });
     if (hist.length > 60) hist.shift();
+    turnToolCalls[sid] = 0;  // reset for new turn
   } else {
     last.tokens = s.tokens_total || 0;
+    last.toolCalls = turnToolCalls[sid];
   }
 }
 
@@ -49,8 +87,8 @@ function handleMessage(msg) {
   } else if (msg.type === "session_updated") {
     sessions[msg.session.session_id] = msg.session;
     recordHistory(msg.session);
-    renderTile(msg.session);
-    updateTopbar();
+    if (refreshMode === "high") { renderTile(msg.session); updateTopbar(); }
+    else scheduleRender();
   } else if (msg.type === "checkpoint_event") {
     sessions[msg.state.session_id] = msg.state;
     recordHistory(msg.state);
@@ -127,7 +165,7 @@ function buildTile(sessionId) {
       <div class="progress-track"><div class="progress-fill" data-field="bar" style="width:0%"></div></div>
     </div>
     <div class="chart-wrap">
-      <div class="chart-label">TOKEN BURN — PER TURN</div>
+      <div class="chart-label" data-field="chart-label">ACTIVITY — PER TURN</div>
       <canvas class="tile-chart" data-field="chart"></canvas>
     </div>
     <div class="stats-row">
@@ -183,7 +221,12 @@ function updateTile(tile, s) {
 
   // Area chart
   const canvas = tile.querySelector("[data-field='chart']");
-  if (canvas) drawChart(canvas, s.session_id);
+  if (canvas) {
+    const hist = chartHistory[s.session_id] || [];
+    const hasTokens = hist.some(p => p.tokens > 0);
+    set(tile, "chart-label", hasTokens ? "TOKEN BURN — PER TURN" : "TOOL CALLS — PER TURN");
+    drawChart(canvas, s.session_id);
+  }
 
   // Tile border class
   tile.className = "tile" +
@@ -283,13 +326,16 @@ function drawChart(canvas, sessionId) {
     return;
   }
 
-  const maxTok = Math.max(...hist.map(p => p.tokens), 1);
+  // Prefer real token data (OTEL); fall back to tool call count as activity proxy
+  const hasTokens = hist.some(p => p.tokens > 0);
+  const vals = hist.map(p => hasTokens ? p.tokens : (p.toolCalls || 0));
+  const maxVal = Math.max(...vals, 1);
   const pad = { t: 8, b: 8, l: 4, r: 4 };
   const cW = W - pad.l - pad.r;
   const cH = H - pad.t - pad.b;
 
   const px = (i) => pad.l + (i / (hist.length - 1)) * cW;
-  const py = (v) => pad.t + cH - (v / maxTok) * cH;
+  const py = (v) => pad.t + cH - (v / maxVal) * cH;
 
   // Gradient fill
   const grad = ctx.createLinearGradient(0, pad.t, 0, H);
@@ -298,8 +344,8 @@ function drawChart(canvas, sessionId) {
   grad.addColorStop(1, "rgba(0,255,240,0)");
 
   ctx.beginPath();
-  ctx.moveTo(px(0), py(hist[0].tokens));
-  for (let i = 1; i < hist.length; i++) ctx.lineTo(px(i), py(hist[i].tokens));
+  ctx.moveTo(px(0), py(vals[0]));
+  for (let i = 1; i < hist.length; i++) ctx.lineTo(px(i), py(vals[i]));
   ctx.lineTo(px(hist.length - 1), H - pad.b);
   ctx.lineTo(px(0), H - pad.b);
   ctx.closePath();
@@ -308,8 +354,8 @@ function drawChart(canvas, sessionId) {
 
   // Line
   ctx.beginPath();
-  ctx.moveTo(px(0), py(hist[0].tokens));
-  for (let i = 1; i < hist.length; i++) ctx.lineTo(px(i), py(hist[i].tokens));
+  ctx.moveTo(px(0), py(vals[0]));
+  for (let i = 1; i < hist.length; i++) ctx.lineTo(px(i), py(vals[i]));
   ctx.strokeStyle = "#00fff0";
   ctx.lineWidth = 1.5;
   ctx.shadowColor = "#00fff0";
@@ -320,7 +366,7 @@ function drawChart(canvas, sessionId) {
   // Dots
   for (let i = 0; i < hist.length; i++) {
     ctx.beginPath();
-    ctx.arc(px(i), py(hist[i].tokens), i === hist.length - 1 ? 3.5 : 2, 0, Math.PI * 2);
+    ctx.arc(px(i), py(vals[i]), i === hist.length - 1 ? 3.5 : 2, 0, Math.PI * 2);
     ctx.fillStyle = i === hist.length - 1 ? "#00fff0" : "rgba(0,255,240,0.55)";
     ctx.shadowColor = "#00fff0";
     ctx.shadowBlur = i === hist.length - 1 ? 6 : 0;
@@ -336,5 +382,15 @@ function fmtEta(sec) {
   if (sec < 60) return `${Math.round(sec)}s`;
   return `~${Math.round(sec / 60)}m`;
 }
+
+// ── Refresh rate buttons ─────────────────────────────────
+document.querySelectorAll(".rate-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const mode = btn.dataset.rate;
+    if (mode === "refresh") { renderAll(); return; }
+    setRefreshMode(mode);
+  });
+});
+setRefreshMode("high");
 
 connect();

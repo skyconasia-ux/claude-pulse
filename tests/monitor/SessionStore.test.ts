@@ -132,12 +132,12 @@ describe("SessionStore — checkpoint thresholds (independent)", () => {
 });
 
 describe("SessionStore — out-of-order events", () => {
-  it("drops events older than 5s within the same session", () => {
+  it("drops events older than 60s within the same session", () => {
     const store = new SessionStore(cfg);
     const now = Date.now();
     store.apply(makeEvent({ timestamp_ms: now }));
     const tokensBefore = store.getState().tokens_total;
-    store.apply(makeEvent({ tokens: { input: 999, output: 999 }, timestamp_ms: now - 6000 }));
+    store.apply(makeEvent({ tokens: { input: 999, output: 999 }, timestamp_ms: now - 61_000 }));
     expect(store.getState().tokens_total).toBe(tokensBefore);
   });
 });

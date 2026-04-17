@@ -33,7 +33,7 @@ export function normalizeHookPayload(raw: Record<string, unknown>): NormalizedEv
     type: hookEventToType(raw.hook_event_name as string),
     tokens: { input, output },
     cost_usd: calcCost(input, output),
-    timestamp_ms: (raw.timestamp_ms as number) ?? Date.now(),
+    timestamp_ms: (raw.timestamp_ms as number) || Date.now(),
     metadata: raw,
   };
 }

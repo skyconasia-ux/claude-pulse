@@ -22,6 +22,7 @@ export interface SessionState {
   is_stale: boolean;
   started_at: number;
   turns: number;
+  tool_calls_total: number;
   tokens_total: number;
   tokens_in: number;
   tokens_out: number;
