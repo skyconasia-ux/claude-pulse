@@ -1,7 +1,7 @@
 # Claude Working Memory
 
 Project: LiveVisualUsage
-Last updated: 2026-04-17
+Last updated: 2026-04-18
 
 ## Rules
 - Do not re-derive architecture once defined
@@ -12,10 +12,13 @@ Last updated: 2026-04-17
 - WsMessage protocol: sessions_snapshot on connect, session_updated on change
 
 ## Current State
-- All features shipped and stable
+- All features shipped + runtime fixes applied 2026-04-18
 - 28/28 tests passing
 - GitHub: https://github.com/skyconasia-ux/live-visual-usage (public, MIT)
 - Port: 3001 (HTTP + WS)
+- Global hooks: `~/.claude/settings.json` (PostToolUse/Stop/Notification → localhost:3001/hook)
+- Shutdown: WS disconnect ≥3s → 3s grace → clean exit; refresh/flicker suppressed
+- Area chart: per-tile canvas, turn-by-turn token burn (Layout C Hybrid)
 
 ## Architecture (immutable unless explicitly redesigned)
 HooksAdapter / OtelAdapter → EventBus → SessionRegistry → N × SessionStore → WsBroadcaster → browser + terminal
