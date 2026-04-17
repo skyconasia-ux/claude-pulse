@@ -115,7 +115,13 @@ function connect() {
   const ws = new WebSocket(WS_URL);
   ws.on("open", () => (logBox as unknown as { log: (s: string) => void }).log("Connected to LiveVisualUsage server"));
   ws.on("message", (data) => {
-    const msg: WsMessage = JSON.parse(data.toString());
+    let msg: WsMessage;
+    try {
+      msg = JSON.parse(data.toString());
+    } catch {
+      (logBox as unknown as { log: (s: string) => void }).log("Parse error: malformed message");
+      return;
+    }
     if (msg.type === "snapshot") {
       localState = msg.state;
       update(localState);
