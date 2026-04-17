@@ -258,7 +258,7 @@ function showBanner(severity, projectName) {
     : `● RECOMMEND CHECKPOINT — ${projectName}`;
   banner.className = `banner ${severity}`;
   banner.style.display = "block";
-  setTimeout(() => { banner.style.display = "none"; }, 4000);
+  setTimeout(() => { banner.style.display = "none"; }, 60000);
 }
 
 // ── Abort ────────────────────────────────────────────────
