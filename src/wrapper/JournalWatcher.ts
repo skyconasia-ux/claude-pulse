@@ -24,6 +24,7 @@ interface ParsedLine {
   inputAbsolute: number;
   output: number;
   cost: number;
+  toolCalls: number;
 }
 
 function parseUsageLine(line: string): ParsedLine | null {
@@ -41,10 +42,15 @@ function parseUsageLine(line: string): ParsedLine | null {
   if (inputAbsolute === 0 && output === 0) return null;
 
   const cost = inputAbsolute * COST_PER_INPUT + output * COST_PER_OUTPUT;
+
+  // Count tool_use blocks inside this assistant message content
+  const content = (msg?.content as Array<Record<string, unknown>> | undefined) ?? [];
+  const toolCalls = content.filter(c => c.type === "tool_use").length;
+
   return {
     sessionId: (obj.sessionId as string) ?? "",
     projectName: extractProjectName(obj.cwd as string | undefined),
-    inputAbsolute, output, cost,
+    inputAbsolute, output, cost, toolCalls,
   };
 }
 
@@ -123,7 +129,7 @@ export class JournalWatcher {
     // - totalCost    = sum of all per-turn costs
     const sessions: Record<string, {
       latestInput: number; totalOutput: number; totalCost: number;
-      projectName: string;
+      totalTools: number; turns: number; projectName: string;
     }> = {};
 
     for (const line of content.split("\n")) {
@@ -131,19 +137,24 @@ export class JournalWatcher {
       const p = parseUsageLine(line);
       if (!p || !p.sessionId) continue;
       if (!sessions[p.sessionId]) {
-        sessions[p.sessionId] = { latestInput: 0, totalOutput: 0, totalCost: 0, projectName: p.projectName };
+        sessions[p.sessionId] = { latestInput: 0, totalOutput: 0, totalCost: 0, totalTools: 0, turns: 0, projectName: p.projectName };
       }
-      sessions[p.sessionId].latestInput = p.inputAbsolute; // replace — latest wins
+      sessions[p.sessionId].latestInput = p.inputAbsolute; // latest wins — current context size
       sessions[p.sessionId].totalOutput += p.output;
       sessions[p.sessionId].totalCost += p.cost;
+      sessions[p.sessionId].totalTools += p.toolCalls;
+      sessions[p.sessionId].turns += 1; // each assistant line = one completed turn
     }
 
     let prevInput = 0;
     for (const [sessionId, s] of Object.entries(sessions)) {
       if (s.latestInput === 0 && s.totalOutput === 0) continue;
       prevInput = s.latestInput;
-      this.emitEvent(sessionId, s.projectName, s.latestInput, s.totalOutput, s.totalCost);
-      log.info("bootstrapped session", { session: sessionId.slice(0, 8), contextTokens: s.latestInput, output: s.totalOutput });
+      this.emitEvent(sessionId, s.projectName, s.latestInput, s.totalOutput, s.totalCost, {
+        bootstrapTurns: s.turns,
+        toolsDelta: s.totalTools,
+      });
+      log.info("bootstrapped session", { session: sessionId.slice(0, 8), contextTokens: s.latestInput, turns: s.turns, tools: s.totalTools });
     }
 
     this.fileStates.set(filePath, { size, buf: "", prevInputAbsolute: prevInput });
@@ -212,12 +223,16 @@ export class JournalWatcher {
       const inputDelta = Math.max(0, p.inputAbsolute - state.prevInputAbsolute);
       state.prevInputAbsolute = p.inputAbsolute;
 
-      this.emitEvent(sessionId, p.projectName, inputDelta, p.output, p.cost);
-      log.info("live token event", { session: sessionId.slice(0, 8), inputDelta, output: p.output, contextNow: p.inputAbsolute });
+      this.emitEvent(sessionId, p.projectName, inputDelta, p.output, p.cost, { toolsDelta: p.toolCalls });
+      log.info("live token event", { session: sessionId.slice(0, 8), inputDelta, output: p.output, tools: p.toolCalls });
     }
   }
 
-  private emitEvent(sessionId: string, projectName: string, input: number, output: number, cost: number): void {
+  private emitEvent(
+    sessionId: string, projectName: string,
+    input: number, output: number, cost: number,
+    meta: Record<string, unknown> = {},
+  ): void {
     const event: NormalizedEvent = {
       session_id: sessionId,
       project_name: projectName,
@@ -226,7 +241,7 @@ export class JournalWatcher {
       tokens: { input, output },
       cost_usd: cost,
       timestamp_ms: Date.now(),
-      metadata: {},
+      metadata: meta,
     };
     eventBus.emit("event", event);
   }

@@ -78,6 +78,17 @@ export class SessionStore extends EventEmitter {
       this.state.tokens_total += tokenDelta;
       this.state.cost_usd += event.cost_usd;
       this.state.last_seen_ms = event.timestamp_ms;
+
+      // Bootstrap event seeds historical turn/tool counts; live events increment by 1
+      const bootstrapTurns = event.metadata.bootstrapTurns as number | undefined;
+      if (bootstrapTurns !== undefined) {
+        this.state.turns = Math.max(this.state.turns, bootstrapTurns);
+      } else {
+        this.state.turns += 1;
+      }
+      const toolsDelta = (event.metadata.toolsDelta as number | undefined) ?? 0;
+      this.state.tool_calls_total += toolsDelta;
+
       if (tokenDelta > 0) {
         this.recentTokenDeltas.push({ tokens: tokenDelta, ts: event.timestamp_ms });
         if (this.recentTokenDeltas.length > 10) this.recentTokenDeltas.shift();

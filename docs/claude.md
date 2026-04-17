@@ -12,7 +12,7 @@ Last updated: 2026-04-18
 - WsMessage protocol: sessions_snapshot on connect, session_updated on change
 
 ## Current State
-- Live token data via JournalWatcher (JSONL tailing) — 2026-04-18
+- All metrics live from JSONL: tokens, cost, turns, tools, burn/s, ETA — 2026-04-18
 - 28/28 tests passing
 - GitHub: https://github.com/skyconasia-ux/live-visual-usage (public, MIT)
 - Port: 3001 (HTTP + WS)

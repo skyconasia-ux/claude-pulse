@@ -23,24 +23,34 @@
 
 ---
 
-## CURRENT CHECKPOINT
-
 ### 2026-04-18 — Live Token Data via JSONL Journal Watcher
-
-**Objective:** Surface real token counts, cost, burn rate, and ETA live — without OTEL config.
-
-**Completed:**
-- `JournalWatcher` tails `~/.claude/projects/**/*.jsonl` via `fs.watch`; each assistant response appends a line with `message.usage` — picked up immediately
-- Bootstrap on startup: reads sessions modified in last 24h, emits cumulative token totals per session
-- `token_delta` event type added — updates tokens/cost without clobbering lifecycle state
-- Stats row consolidated to single 5-col row: COST · TURNS · BURN/S · ETA · TOOLS
-- Checkpoint banner extended to 60s display
+- `JournalWatcher` switched from `fs.watch` to 1s polling (reliable on Windows)
+- Only bootstraps most-recent JSONL per project dir within 1h window — no ghost tiles
+- Token calculation fixed: bootstrap uses latest `input_tokens` (context window size, not sum); live = delta per turn
+- Totals box added to each tile (TOTAL TOKENS / COST / TURNS / TOOLS) with animated counters
+- Blinking checkpoint banner (0.7s mandatory, 1.2s suggested), 60s display
+- Empty-state grid-hide bug fixed; High refresh = 1s timer
 - 28/28 tests passing; pushed to GitHub
 
-**Current state:** Server tails live JSONL. Tokens update per assistant turn. Hooks still count tool calls. Both complement each other.
+---
 
-**Next steps (pending, not started):**
-- Confirm live token flow after server restart (user to test)
+## CURRENT CHECKPOINT
+
+### 2026-04-18 — Full Live Metrics from JSONL
+
+**Objective:** Fix turns, tools, burn/s, ETA all showing 0 — derive them directly from JSONL.
+
+**Completed:**
+- Turns: count `assistant` lines per session in JSONL — bootstrap seeds historical count, each live event increments by 1
+- Tools: count `tool_use` content blocks inside each assistant message — passed via `metadata.toolsDelta`
+- `SessionStore.token_delta` handler now applies `bootstrapTurns` (set) and `toolsDelta` (accumulate) from event metadata
+- Burn/s + ETA: now populate naturally once 2+ turn events arrive
+- Animated counters on all numeric fields (700ms ease-out roll-up)
+- 28/28 tests passing
+
+**Current state:** Tokens, cost, turns, tools all derive from JSONL polling. Burn/s and ETA populate after ≥2 turns.
+
+**Next steps:**
 - PID tracking → real process kill on Abort
 - Session history persistence to disk
 - Terminal dashboard: multi-session layout
