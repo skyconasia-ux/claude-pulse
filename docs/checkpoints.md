@@ -3,34 +3,30 @@
 ## HISTORY
 
 ### 2026-04-17 — Project Initialized
-- Objective: real-time Claude Code CLI telemetry + dual dashboard
-- Completed: design spec, decisions log, implementation plan, all 10 tasks (Tasks 0–9)
-- Shipped: EventBus, EventNormalizer, SessionStore, HooksAdapter, OtelAdapter, WsBroadcaster, TelemetryServer, browser dashboard (Neon Cyber), terminal dashboard (blessed-contrib), structured logger
+- Shipped: full 10-task MVP — EventBus, EventNormalizer, SessionStore, HooksAdapter, OtelAdapter, WsBroadcaster, TelemetryServer, browser dashboard (Neon Cyber), terminal dashboard (blessed-contrib), structured logger
+- 28/28 tests passing; pushed to GitHub
+
+### 2026-04-17 — Multi-Session + Lifecycle Visibility
+- Shipped: SessionRegistry (N sessions), LifecycleState (11 states), sessions_snapshot/session_updated WS protocol, full-width browser tile grid, per-tile Abort button (Code 10 Abort), stale detection, terminal dashboard updated
 - 28/28 tests passing; pushed to GitHub
 
 ---
 
 ## CURRENT CHECKPOINT
 
-### 2026-04-17 — Multi-Session + Lifecycle Visibility
+### 2026-04-17 — Operational / Stabilisation
 
-**Objective:** Upgrade MVP to monitor multiple concurrent Claude sessions with full lifecycle visibility and per-session abort control.
+**Objective:** System running in production; no active feature work.
 
 **Completed:**
-- `SessionRegistry` — routes events by `session_id`, manages N `SessionStore` instances, stale detection (60s → waiting, 300s → closed)
-- `LifecycleState` — 11 states: not_launched, running, thinking, tool_use, idle, waiting, cancelled, closed, ctrl_c, stopped, unknown
-- `NormalizedEvent` — optional `session_id` + `project_name` (extracted from hook `cwd`)
-- `SessionState` — new fields: `project_name`, `lifecycle`, `last_seen_ms`, `is_stale`
-- `WsBroadcaster` — new multi-session API: `sessions_snapshot` on connect, `session_updated` on change
-- `WsMessage` — `sessions_snapshot` + `session_updated` replace single-session snapshot/delta
-- Browser dashboard — full-width responsive grid, one neon-cyber tile per session, lifecycle badges, stale dimming
-- Abort button — per-tile, label "Abort", tooltip "Code 10 Abort", confirmation dialog, `POST /abort/:sessionId`
-- Terminal dashboard — updated to handle `sessions_snapshot`, shows most-recently-active session
-- 28/28 tests passing
+- All features shipped: multi-session, lifecycle, abort, logger, browser + terminal dashboards
+- GitHub repo clean: .gitignore, MIT LICENSE, config.example.json, full README
+- Port conflict (EADDRINUSE 3001) diagnosed and resolved — previous server process killed
 
-**Current state:** Shipped, pushed to GitHub.
+**Current state:** Stable. Server runs with `npm run dev`. Browser dashboard at http://localhost:3001/dashboard.
 
-**Next steps (not started):**
-- Optional: PID tracking in hooks payload for real process kill on abort
-- Optional: session history persistence to disk
-- Optional: multiple concurrent sessions shown in terminal (blessed layout expansion)
+**Next steps (pending, not started):**
+- PID tracking in hook payload → real process kill on Abort
+- Session history persistence to disk
+- Terminal dashboard: show multiple sessions simultaneously (blessed grid expansion)
+- `.claude/settings.json` hook wiring per monitored project
