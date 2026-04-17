@@ -3,7 +3,8 @@ const THRESHOLD = 100000;
 
 let ws;
 let sessions = {};        // keyed by session_id
-let chartHistory = {};    // session_id → [{toolCalls, tokens}] — time-series, one point per update
+let chartHistory = {};    // session_id → [{toolCalls, tokens, tokensDelta, toolsDelta, ts}]
+let accountInfo = null;   // {subscriptionType, rateLimitTier} from credentials
 let startedAt = null;
 let elapsedTimer = null;
 let pendingAbortId = null;
@@ -56,12 +57,22 @@ function recordHistory(s) {
   const sid = s.session_id;
   if (!chartHistory[sid]) chartHistory[sid] = [];
   const hist = chartHistory[sid];
-  hist.push({ toolCalls: s.tool_calls_total || 0, tokens: s.tokens_total || 0, ts: Date.now() });
+  const prev = hist.length > 0 ? hist[hist.length - 1] : null;
+  const tokens = s.tokens_total || 0;
+  const toolCalls = s.tool_calls_total || 0;
+  hist.push({
+    tokens,
+    toolCalls,
+    tokensDelta: prev ? Math.max(0, tokens - prev.tokens) : 0,
+    toolsDelta:  prev ? Math.max(0, toolCalls - prev.toolCalls) : 0,
+    ts: Date.now(),
+  });
   if (hist.length > 120) hist.shift();
 }
 
 function handleMessage(msg) {
   if (msg.type === "sessions_snapshot") {
+    if (msg.accountInfo) accountInfo = msg.accountInfo;
     sessions = {};
     for (const s of msg.sessions) { sessions[s.session_id] = s; recordHistory(s); }
     if (!startedAt) {
@@ -142,6 +153,7 @@ function buildTile(sessionId) {
         <span class="badge badge-stale" data-field="stale" style="display:none">STALE</span>
       </div>
     </div>
+    <div class="plan-bar" data-field="plan-bar"></div>
     <div>
       <div class="token-hero-label">TOTAL TOKENS</div>
       <div class="token-hero-value" data-field="total">0</div>
@@ -201,6 +213,7 @@ function updateTile(tile, s) {
   animNum(tile, "tot-turns",  s.turns || 0,          fmtWhole);
   animNum(tile, "tot-tools",  s.tool_calls_total||0, fmtWhole);
 
+  renderPlanBar(tile);
   set(tile, "name", s.project_name || s.session_id.slice(0, 12));
   set(tile, "sid", s.session_id.slice(0, 16) + (s.session_id.length > 16 ? "…" : ""));
   animNum(tile, "total", total,                fmtInt);
@@ -312,6 +325,34 @@ function updateElapsed() {
   document.getElementById("elapsed").textContent = m > 0 ? `${m}m ${sec}s` : `${sec}s`;
 }
 
+// ── Plan badge ───────────────────────────────────────────
+function planLabel(info) {
+  if (!info) return null;
+  const sub = (info.subscriptionType || "unknown").toLowerCase();
+  const tier = (info.rateLimitTier || "").toLowerCase();
+
+  const planText = sub === "pro" ? "PRO" : sub === "max" ? "MAX" : sub === "free" ? "FREE" : sub.toUpperCase();
+  const planClass = ["pro","max","free"].includes(sub) ? sub : "unknown";
+
+  let tierText = "INCLUDED USAGE";
+  let tierClass = "";
+  if (tier.includes("extra")) { tierText = "EXTRA USAGE"; tierClass = "extra"; }
+  else if (tier.includes("api")) { tierText = "API KEY"; }
+  else if (tier.includes("default_claude_ai")) { tierText = "INCLUDED USAGE"; }
+  else if (tier) { tierText = tier.replace(/_/g, " ").toUpperCase(); }
+
+  return { planText, planClass, tierText, tierClass };
+}
+
+function renderPlanBar(tile) {
+  const bar = tile.querySelector("[data-field='plan-bar']");
+  if (!bar || bar._rendered) return;
+  const p = planLabel(accountInfo);
+  if (!p) { bar.style.display = "none"; return; }
+  bar.innerHTML = `<span class="plan-pill ${p.planClass}">${p.planText}</span><span class="plan-tier ${p.tierClass}">${p.tierText}</span>`;
+  bar._rendered = true;
+}
+
 // ── Checkpoint banner ────────────────────────────────────
 function showBanner(severity, projectName) {
   const banner = document.getElementById("banner");
@@ -377,10 +418,10 @@ function wireChartTooltip(canvas, sessionId) {
     const pt   = hist[i];
 
     const hasTokens = hist.some(p => p.tokens > 0);
-    const val  = hasTokens ? pt.tokens : pt.toolCalls;
+    const delta = hasTokens ? pt.tokensDelta : pt.toolsDelta;
     const label = hasTokens
-      ? Number(val).toLocaleString() + " tokens"
-      : Number(val).toLocaleString() + " tool calls";
+      ? (delta > 0 ? "+" : "") + Number(delta).toLocaleString() + " tokens burned"
+      : (delta > 0 ? "+" : "") + Number(delta).toLocaleString() + " tool calls";
 
     ttTime.textContent = fmtTs(pt.ts);
     ttVal.textContent  = label;

@@ -35,8 +35,13 @@ export interface SessionState {
   last_checkpoint_turn: number;
 }
 
+export interface AccountInfo {
+  subscriptionType: string;   // "pro" | "free" | "max" | …
+  rateLimitTier: string;      // "default_claude_ai" | "extra_usage_claude_ai" | …
+}
+
 export type WsMessage =
-  | { type: "sessions_snapshot"; sessions: SessionState[] }
+  | { type: "sessions_snapshot"; sessions: SessionState[]; accountInfo?: AccountInfo }
   | { type: "session_updated"; session: SessionState }
   | { type: "checkpoint_event"; severity: "suggested" | "mandatory"; state: SessionState };
 

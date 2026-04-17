@@ -141,6 +141,15 @@
     .tot-turns  .tot-value { color: var(--amber); }
     .tot-tools  .tot-value { color: rgba(0,255,240,0.5); }
 
+    .plan-bar { display: flex; align-items: center; gap: 8px; padding: 5px 0 7px; border-bottom: 1px solid rgba(0,255,240,0.07); margin-bottom: 8px; font-size: 9px; letter-spacing: 1.5px; }
+    .plan-pill { padding: 2px 7px; border-radius: 3px; font-size: 9px; letter-spacing: 2px; font-weight: bold; }
+    .plan-pill.pro  { background: rgba(0,255,240,0.12); border: 1px solid rgba(0,255,240,0.4); color: var(--cyan); }
+    .plan-pill.max  { background: rgba(191,0,255,0.15); border: 1px solid rgba(191,0,255,0.5); color: var(--purple); }
+    .plan-pill.free { background: rgba(255,170,0,0.12); border: 1px solid rgba(255,170,0,0.4); color: var(--amber); }
+    .plan-pill.unknown { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); color: var(--dim); }
+    .plan-tier { color: var(--dim); }
+    .plan-tier.extra { color: var(--amber); }
+
     .chart-wrap { position: relative; }
     .chart-label { font-size: 9px; letter-spacing: 2px; color: var(--dim); margin-bottom: 5px; }
     .tile-chart { display: block; width: 100%; height: 72px; border-radius: 4px; cursor: crosshair; }

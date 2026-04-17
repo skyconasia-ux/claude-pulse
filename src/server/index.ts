@@ -2,6 +2,9 @@ import http from "http";
 import express, { Request, Response } from "express";
 import readline from "readline";
 import { exec } from "child_process";
+import fs from "fs";
+import os from "os";
+import path from "path";
 import { config } from "../config";
 import { eventBus } from "../monitor/EventBus";
 import { SessionRegistry } from "../monitor/SessionRegistry";
@@ -10,7 +13,20 @@ import { createHooksRouter } from "../wrapper/HooksAdapter";
 import { createOtelRouter } from "../wrapper/OtelAdapter";
 import { JournalWatcher } from "../wrapper/JournalWatcher";
 import { makeLogger } from "./logger";
-import path from "path";
+import { AccountInfo } from "../types";
+
+function readAccountInfo(): AccountInfo | undefined {
+  try {
+    const credPath = path.join(os.homedir(), ".claude", ".credentials.json");
+    const raw = JSON.parse(fs.readFileSync(credPath, "utf8"));
+    const oauth = raw?.claudeAiOauth;
+    if (!oauth) return undefined;
+    return {
+      subscriptionType: String(oauth.subscriptionType ?? "unknown"),
+      rateLimitTier: String(oauth.rateLimitTier ?? "unknown"),
+    };
+  } catch { return undefined; }
+}
 
 function openBrowser(url: string): void {
   const cmd = process.platform === "win32" ? `start "" "${url}"`
@@ -28,7 +44,7 @@ app.use(createOtelRouter(config.otel_enabled));
 app.use("/dashboard", express.static(path.join(__dirname, "../frontend/browser")));
 
 const server = http.createServer(app);
-const broadcaster = new WsBroadcaster(server);
+const broadcaster = new WsBroadcaster(server, readAccountInfo());
 
 const registry = new SessionRegistry(
   config,

@@ -1,6 +1,6 @@
 import { Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
-import { SessionState, WsMessage } from "../types";
+import { SessionState, WsMessage, AccountInfo } from "../types";
 import { makeLogger } from "./logger";
 
 const log = makeLogger("WsBroadcaster");
@@ -10,13 +10,15 @@ export class WsBroadcaster {
   private sessions: SessionState[] = [];
   private noClientsCallback?: () => void;
   private newClientCallback?: () => void;
+  private accountInfo?: AccountInfo;
 
-  constructor(server: Server) {
+  constructor(server: Server, accountInfo?: AccountInfo) {
+    this.accountInfo = accountInfo;
     this.wss = new WebSocketServer({ server });
     this.wss.on("connection", (ws: WebSocket) => {
       log.info("client connected", { clients: this.wss.clients.size });
       this.newClientCallback?.();
-      const msg: WsMessage = { type: "sessions_snapshot", sessions: this.sessions };
+      const msg: WsMessage = { type: "sessions_snapshot", sessions: this.sessions, accountInfo: this.accountInfo };
       try {
         ws.send(JSON.stringify(msg));
         log.debug("sessions_snapshot sent to new client", { session_count: this.sessions.length });
