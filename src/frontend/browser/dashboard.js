@@ -10,7 +10,8 @@ let pendingAbortId = null;
 
 // ── Refresh rate ─────────────────────────────────────────
 let refreshMode = "high";   // high | normal | low | paused
-const REFRESH_INTERVALS = { high: 0, normal: 5000, low: 30000, paused: null };
+// Task Manager parity: High=every WS message, Normal=2s, Low=10s
+const REFRESH_INTERVALS = { high: 0, normal: 2000, low: 10000, paused: null };
 let refreshTimer = null;
 let pendingRender = false;
 
@@ -32,7 +33,7 @@ function scheduleRender() {
 }
 
 function flushRender() {
-  if (pendingRender) { renderAll(); pendingRender = false; }
+  if (pendingRender) { renderAll(); updateEmptyState(); pendingRender = false; }
 }
 
 // ── WebSocket ────────────────────────────────────────────
@@ -72,12 +73,14 @@ function handleMessage(msg) {
   } else if (msg.type === "session_updated") {
     sessions[msg.session.session_id] = msg.session;
     recordHistory(msg.session);
-    if (refreshMode === "high") { renderTile(msg.session); updateTopbar(); }
+    if (refreshMode === "high") { renderTile(msg.session); updateTopbar(); updateEmptyState(); }
     else scheduleRender();
   } else if (msg.type === "checkpoint_event") {
     sessions[msg.state.session_id] = msg.state;
     recordHistory(msg.state);
     renderTile(msg.state);
+    updateTopbar();
+    updateEmptyState();
     showBanner(msg.severity, msg.state.project_name);
   }
 }
