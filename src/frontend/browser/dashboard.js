@@ -10,8 +10,8 @@ let pendingAbortId = null;
 
 // ── Refresh rate ─────────────────────────────────────────
 let refreshMode = "high";   // high | normal | low | paused
-// Task Manager parity: High=every WS message, Normal=2s, Low=10s
-const REFRESH_INTERVALS = { high: 0, normal: 2000, low: 10000, paused: null };
+// Task Manager parity: High=1s, Normal=2s, Low=10s
+const REFRESH_INTERVALS = { high: 1000, normal: 2000, low: 10000, paused: null };
 let refreshTimer = null;
 let pendingRender = false;
 
@@ -21,7 +21,7 @@ function setRefreshMode(mode) {
     b.classList.toggle("active", b.dataset.rate === mode);
   });
   if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
-  if (mode === "normal" || mode === "low") {
+  if (mode !== "paused") {
     refreshTimer = setInterval(flushRender, REFRESH_INTERVALS[mode]);
   }
 }
@@ -73,8 +73,7 @@ function handleMessage(msg) {
   } else if (msg.type === "session_updated") {
     sessions[msg.session.session_id] = msg.session;
     recordHistory(msg.session);
-    if (refreshMode === "high") { renderTile(msg.session); updateTopbar(); updateEmptyState(); }
-    else scheduleRender();
+    pendingRender = true;
   } else if (msg.type === "checkpoint_event") {
     sessions[msg.state.session_id] = msg.state;
     recordHistory(msg.state);

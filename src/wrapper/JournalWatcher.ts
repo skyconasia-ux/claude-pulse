@@ -9,7 +9,8 @@ const log = makeLogger("JournalWatcher");
 
 const COST_PER_INPUT = 0.000003;
 const COST_PER_OUTPUT = 0.000015;
-const STALE_HOURS = 24;
+// Only bootstrap sessions active within the last hour
+const ACTIVE_WINDOW_MS = 60 * 60 * 1000;
 
 function extractProjectName(cwd?: string): string {
   if (!cwd) return "unknown";
@@ -17,7 +18,16 @@ function extractProjectName(cwd?: string): string {
   return parts.pop() ?? "unknown";
 }
 
-function parseUsageLine(line: string): { sessionId: string; projectName: string; input: number; output: number; cost: number; ts: number } | null {
+interface ParsedLine {
+  sessionId: string;
+  projectName: string;
+  inputAbsolute: number;  // full context size sent to model this turn
+  output: number;
+  cost: number;
+  ts: number;
+}
+
+function parseUsageLine(line: string): ParsedLine | null {
   let obj: Record<string, unknown>;
   try { obj = JSON.parse(line); } catch { return null; }
   if (obj.type !== "assistant") return null;
@@ -25,21 +35,28 @@ function parseUsageLine(line: string): { sessionId: string; projectName: string;
   const usage = msg?.usage as Record<string, number> | undefined;
   if (!usage) return null;
 
-  const input = (usage.input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0);
+  // input_tokens = prompt tokens; cache_* = cached context (still billed)
+  const inputAbsolute = (usage.input_tokens ?? 0) +
+    (usage.cache_creation_input_tokens ?? 0) +
+    (usage.cache_read_input_tokens ?? 0);
   const output = usage.output_tokens ?? 0;
-  if (input === 0 && output === 0) return null;
+  if (inputAbsolute === 0 && output === 0) return null;
 
-  const cost = input * COST_PER_INPUT + output * COST_PER_OUTPUT;
+  const cost = inputAbsolute * COST_PER_INPUT + output * COST_PER_OUTPUT;
   const ts = obj.timestamp ? new Date(obj.timestamp as string).getTime() : Date.now();
 
   return {
     sessionId: (obj.sessionId as string) ?? "",
     projectName: extractProjectName(obj.cwd as string | undefined),
-    input, output, cost, ts,
+    inputAbsolute, output, cost, ts,
   };
 }
 
-interface FileState { size: number; buf: string; }
+interface FileState {
+  size: number;
+  buf: string;
+  prevInputAbsolute: number; // last known context window size, for delta calculation
+}
 
 export class JournalWatcher {
   private claudeDir: string;
@@ -67,13 +84,12 @@ export class JournalWatcher {
       log.warn("error scanning projects dir", { err: String(e) });
     }
 
-    // Watch for new project directories being created
     const topWatcher = fs.watch(this.claudeDir, (_ev, filename) => {
       if (!filename) return;
       const fullPath = path.join(this.claudeDir, filename);
       try {
         if (fs.statSync(fullPath).isDirectory()) this.watchProjectDir(fullPath);
-      } catch { /* dir may not exist yet */ }
+      } catch { /* not yet created */ }
     });
     this.dirWatchers.set(this.claudeDir, topWatcher);
     log.info("watching Claude journals", { path: this.claudeDir });
@@ -82,19 +98,26 @@ export class JournalWatcher {
   private watchProjectDir(dirPath: string): void {
     if (this.dirWatchers.has(dirPath)) return;
 
+    // Only bootstrap the single most-recently-modified JSONL in this project dir
+    // that was active within the last hour — avoids ghost tiles from old sessions
+    const candidates: { file: string; mtime: number }[] = [];
     try {
       for (const f of fs.readdirSync(dirPath)) {
         if (!f.endsWith(".jsonl")) continue;
-        const filePath = path.join(dirPath, f);
         try {
-          const mtime = fs.statSync(filePath).mtimeMs;
-          const ageMs = Date.now() - mtime;
-          if (ageMs < STALE_HOURS * 3_600_000) {
-            this.bootstrapFile(filePath);
+          const mtime = fs.statSync(path.join(dirPath, f)).mtimeMs;
+          if (Date.now() - mtime < ACTIVE_WINDOW_MS) {
+            candidates.push({ file: f, mtime });
           }
         } catch { /* skip */ }
       }
-    } catch { /* skip unreadable dirs */ }
+    } catch { /* skip */ }
+
+    if (candidates.length > 0) {
+      // Most recent file only — one active session per project
+      candidates.sort((a, b) => b.mtime - a.mtime);
+      this.bootstrapFile(path.join(dirPath, candidates[0].file));
+    }
 
     const watcher = fs.watch(dirPath, (_ev, filename) => {
       if (!filename || !filename.endsWith(".jsonl")) return;
@@ -118,28 +141,43 @@ export class JournalWatcher {
       size = fs.statSync(filePath).size;
     } catch { return; }
 
-    this.fileStates.set(filePath, { size, buf: "" });
-    this.watchFile(filePath);
+    // Parse ALL existing lines to build a correct snapshot:
+    // - inputAbsolute = LATEST turn's context size (not a sum — context window is absolute)
+    // - output = sum of all output tokens across turns (cumulative generation)
+    // - cost = sum of all turn costs (what was actually billed)
+    const sessions: Record<string, {
+      latestInput: number; totalOutput: number; totalCost: number;
+      projectName: string; ts: number;
+    }> = {};
 
-    // Aggregate historical tokens per session and emit a single bootstrap event
-    const totals: Record<string, { input: number; output: number; cost: number; projectName: string; ts: number }> = {};
     for (const line of content.split("\n")) {
       if (!line.trim()) continue;
-      const parsed = parseUsageLine(line);
-      if (!parsed || !parsed.sessionId) continue;
-      if (!totals[parsed.sessionId]) {
-        totals[parsed.sessionId] = { input: 0, output: 0, cost: 0, projectName: parsed.projectName, ts: parsed.ts };
+      const p = parseUsageLine(line);
+      if (!p || !p.sessionId) continue;
+      if (!sessions[p.sessionId]) {
+        sessions[p.sessionId] = { latestInput: 0, totalOutput: 0, totalCost: 0, projectName: p.projectName, ts: p.ts };
       }
-      totals[parsed.sessionId].input += parsed.input;
-      totals[parsed.sessionId].output += parsed.output;
-      totals[parsed.sessionId].cost += parsed.cost;
-      totals[parsed.sessionId].ts = parsed.ts;
+      // Replace input with latest (each turn's value is the current context size)
+      sessions[p.sessionId].latestInput = p.inputAbsolute;
+      sessions[p.sessionId].totalOutput += p.output;
+      sessions[p.sessionId].totalCost += p.cost;
+      sessions[p.sessionId].ts = p.ts;
     }
 
-    for (const [sessionId, t] of Object.entries(totals)) {
-      if (t.input === 0 && t.output === 0) continue;
-      this.emit(sessionId, t.projectName, t.input, t.output, t.cost, t.ts);
-      log.debug("bootstrapped session tokens", { sessionId: sessionId.slice(0, 8), input: t.input, output: t.output });
+    for (const [sessionId, s] of Object.entries(sessions)) {
+      if (s.latestInput === 0 && s.totalOutput === 0) continue;
+      this.fileStates.set(filePath, { size, buf: "", prevInputAbsolute: s.latestInput });
+      this.watchFile(filePath);
+      // Emit bootstrap: input = current context window size (absolute, not delta)
+      // This is the ONE event that seeds the session state correctly
+      this.emitEvent(sessionId, s.projectName, s.latestInput, s.totalOutput, s.totalCost, s.ts);
+      log.debug("bootstrapped", { session: sessionId.slice(0, 8), contextTokens: s.latestInput, output: s.totalOutput });
+    }
+
+    // File had no usage lines — still watch it for future updates
+    if (!this.fileStates.has(filePath)) {
+      this.fileStates.set(filePath, { size, buf: "", prevInputAbsolute: 0 });
+      this.watchFile(filePath);
     }
   }
 
@@ -170,15 +208,20 @@ export class JournalWatcher {
 
     for (const line of lines) {
       if (!line.trim()) continue;
-      const parsed = parseUsageLine(line);
-      if (!parsed) continue;
-      const sessionId = parsed.sessionId || path.basename(filePath, ".jsonl");
-      this.emit(sessionId, parsed.projectName, parsed.input, parsed.output, parsed.cost, Date.now());
-      log.debug("journal token event", { sessionId: sessionId.slice(0, 8), input: parsed.input, output: parsed.output });
+      const p = parseUsageLine(line);
+      if (!p) continue;
+      const sessionId = p.sessionId || path.basename(filePath, ".jsonl");
+
+      // Emit DELTA input (context window growth this turn), not absolute
+      const inputDelta = Math.max(0, p.inputAbsolute - state.prevInputAbsolute);
+      state.prevInputAbsolute = p.inputAbsolute;
+
+      this.emitEvent(sessionId, p.projectName, inputDelta, p.output, p.cost, Date.now());
+      log.debug("live token event", { session: sessionId.slice(0, 8), inputDelta, output: p.output });
     }
   }
 
-  private emit(sessionId: string, projectName: string, input: number, output: number, cost: number, ts: number): void {
+  private emitEvent(sessionId: string, projectName: string, input: number, output: number, cost: number, ts: number): void {
     const event: NormalizedEvent = {
       session_id: sessionId,
       project_name: projectName,

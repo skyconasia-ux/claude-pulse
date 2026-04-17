@@ -56,8 +56,8 @@ export class SessionStore extends EventEmitter {
   }
 
   apply(event: NormalizedEvent): void {
-    // Drop out-of-order events older than 60s — avoids false drops when hook timestamps lag real-time
-    if (event.timestamp_ms < this.lastEventTs - 60_000) {
+    // Drop out-of-order hook/otel events older than 60s — journal events are exempt (bootstrap data)
+    if (event.source !== "journal" && event.timestamp_ms < this.lastEventTs - 60_000) {
       log.warn("dropped out-of-order event", { type: event.type, timestamp_ms: event.timestamp_ms });
       return;
     }
