@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "tsx src/server/index.ts",
     "terminal": "tsx src/frontend/terminal/index.ts",
-    "build": "tsc",
+    "build": "tsc && node -e \"require('fs').cpSync('src/frontend','dist/frontend',{recursive:true})\"",
     "test": "vitest run",
     "test:watch": "vitest"
   },
