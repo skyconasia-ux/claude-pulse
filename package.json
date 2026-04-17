@@ -2,7 +2,7 @@
   "name": "livevisualusage",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/server/index.js",
   "directories": {
     "doc": "docs",
     "test": "tests"

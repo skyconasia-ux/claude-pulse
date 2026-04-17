@@ -3,7 +3,7 @@ import path from "path";
 import { AppConfig } from "./types";
 
 const raw = JSON.parse(
-  fs.readFileSync(path.resolve(process.cwd(), "config.json"), "utf-8")
+  fs.readFileSync(path.resolve(__dirname, "../config.json"), "utf-8")
 );
 
 export const config: AppConfig = {
