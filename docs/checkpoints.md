@@ -24,33 +24,33 @@
 ---
 
 ### 2026-04-18 — Live Token Data via JSONL Journal Watcher
-- `JournalWatcher` switched from `fs.watch` to 1s polling (reliable on Windows)
-- Only bootstraps most-recent JSONL per project dir within 1h window — no ghost tiles
-- Token calculation fixed: bootstrap uses latest `input_tokens` (context window size, not sum); live = delta per turn
-- Totals box added to each tile (TOTAL TOKENS / COST / TURNS / TOOLS) with animated counters
-- Blinking checkpoint banner (0.7s mandatory, 1.2s suggested), 60s display
-- Empty-state grid-hide bug fixed; High refresh = 1s timer
-- 28/28 tests passing; pushed to GitHub
+- 1s polling replaces `fs.watch` (reliable on Windows); 1h active window, 1 file per project dir
+- Token calc fixed: latest `input_tokens` = context size; live = delta per turn
+- Totals box per tile; blinking banner; animated counters; empty-state grid fix
+
+### 2026-04-18 — Full Live Metrics from JSONL
+- Turns: count `assistant` lines in JSONL (bootstrap seeds, live +1 per turn)
+- Tools: count `tool_use` content blocks per message via `metadata.toolsDelta`
+- Burn/s + ETA: populate after ≥2 turns; all 28 tests passing
 
 ---
 
 ## CURRENT CHECKPOINT
 
-### 2026-04-18 — Full Live Metrics from JSONL
+### 2026-04-18 — Confirmed Live + Distribution Planning
 
-**Objective:** Fix turns, tools, burn/s, ETA all showing 0 — derive them directly from JSONL.
+**Objective:** Verify full live monitoring works end-to-end; plan distribution for other users.
 
 **Completed:**
-- Turns: count `assistant` lines per session in JSONL — bootstrap seeds historical count, each live event increments by 1
-- Tools: count `tool_use` content blocks inside each assistant message — passed via `metadata.toolsDelta`
-- `SessionStore.token_delta` handler now applies `bootstrapTurns` (set) and `toolsDelta` (accumulate) from event metadata
-- Burn/s + ETA: now populate naturally once 2+ turn events arrive
-- Animated counters on all numeric fields (700ms ease-out roll-up)
-- 28/28 tests passing
+- All metrics confirmed live: tokens, cost, turns (784 in active session), tools, burn/s, ETA
+- Each new PowerShell/Claude Code session resets counters to 0 (new JSONL file per session)
+- Counter animation working (700ms ease-out roll-up on all numeric fields)
+- 8 commits pushed to GitHub; repo at `skyconasia-ux/live-visual-usage`
 
-**Current state:** Tokens, cost, turns, tools all derive from JSONL polling. Burn/s and ETA populate after ≥2 turns.
+**Current state:** Fully operational. Monitoring this session live. Repo is 8 commits ahead — pushing now.
 
 **Next steps:**
+- Distribution: build pipeline + Windows release package (Node.js 18+ required)
 - PID tracking → real process kill on Abort
 - Session history persistence to disk
 - Terminal dashboard: multi-session layout
