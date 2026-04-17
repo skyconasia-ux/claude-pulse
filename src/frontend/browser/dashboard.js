@@ -56,8 +56,7 @@ function recordHistory(s) {
   const sid = s.session_id;
   if (!chartHistory[sid]) chartHistory[sid] = [];
   const hist = chartHistory[sid];
-  // Record every update as a time-series point — gives fluid live movement
-  hist.push({ toolCalls: s.tool_calls_total || 0, tokens: s.tokens_total || 0 });
+  hist.push({ toolCalls: s.tool_calls_total || 0, tokens: s.tokens_total || 0, ts: Date.now() });
   if (hist.length > 120) hist.shift();
 }
 
@@ -242,6 +241,11 @@ function updateTile(tile, s) {
     const hasTokens = hist.some(p => p.tokens > 0);
     set(tile, "chart-label", hasTokens ? "TOKEN BURN — LIVE" : "TOOL CALLS — LIVE");
     drawChart(canvas, s.session_id);
+    if (!canvas._tooltipWired) {
+      canvas._tooltipWired = true;
+      wireChartTooltip(canvas, s.session_id);
+    }
+    canvas._sessionId = s.session_id;
   }
 
   // Tile border class
@@ -346,6 +350,47 @@ document.getElementById("abort-confirm").addEventListener("click", async () => {
     console.error("Abort request failed", err);
   }
 });
+
+// ── Chart tooltip ────────────────────────────────────────
+const tooltip    = document.getElementById("chart-tooltip");
+const ttTime     = document.getElementById("tt-time");
+const ttVal      = document.getElementById("tt-val");
+
+function fmtTs(ts) {
+  const d = new Date(ts);
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+    + "  " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+function wireChartTooltip(canvas, sessionId) {
+  canvas.addEventListener("mousemove", e => {
+    const sid  = canvas._sessionId || sessionId;
+    const hist = chartHistory[sid] || [];
+    if (hist.length < 2) { tooltip.style.display = "none"; return; }
+
+    const rect = canvas.getBoundingClientRect();
+    const xRel = e.clientX - rect.left;
+    const pad  = 4;
+    const cW   = rect.width - pad * 2;
+    const idx  = Math.round(((xRel - pad) / cW) * (hist.length - 1));
+    const i    = Math.max(0, Math.min(hist.length - 1, idx));
+    const pt   = hist[i];
+
+    const hasTokens = hist.some(p => p.tokens > 0);
+    const val  = hasTokens ? pt.tokens : pt.toolCalls;
+    const label = hasTokens
+      ? Number(val).toLocaleString() + " tokens"
+      : Number(val).toLocaleString() + " tool calls";
+
+    ttTime.textContent = fmtTs(pt.ts);
+    ttVal.textContent  = label;
+    tooltip.style.display = "block";
+    tooltip.style.left = e.clientX + "px";
+    tooltip.style.top  = e.clientY + "px";
+  });
+
+  canvas.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
+}
 
 // ── Area chart ───────────────────────────────────────────
 function drawChart(canvas, sessionId) {
