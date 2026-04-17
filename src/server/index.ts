@@ -1,6 +1,7 @@
 import http from "http";
 import express, { Request, Response } from "express";
 import readline from "readline";
+import { exec } from "child_process";
 import { config } from "../config";
 import { eventBus } from "../monitor/EventBus";
 import { SessionRegistry } from "../monitor/SessionRegistry";
@@ -9,6 +10,13 @@ import { createHooksRouter } from "../wrapper/HooksAdapter";
 import { createOtelRouter } from "../wrapper/OtelAdapter";
 import { makeLogger } from "./logger";
 import path from "path";
+
+function openBrowser(url: string): void {
+  const cmd = process.platform === "win32" ? `start "" "${url}"`
+    : process.platform === "darwin" ? `open "${url}"`
+    : `xdg-open "${url}"`;
+  exec(cmd, (err) => { if (err) log.warn("could not open browser", { message: err.message }); });
+}
 
 const log = makeLogger("TelemetryServer");
 
@@ -92,7 +100,9 @@ async function main() {
     console.log(`\n[LiveVisualUsage] Server running on http://localhost:${config.server_port}`);
     console.log(`[LiveVisualUsage] WebSocket on ws://localhost:${config.ws_port}`);
     if (choice === "browser" || choice === "both") {
-      console.log(`[LiveVisualUsage] Browser dashboard → http://localhost:${config.server_port}/dashboard`);
+      const dashUrl = `http://localhost:${config.server_port}/dashboard`;
+      console.log(`[LiveVisualUsage] Browser dashboard → ${dashUrl}`);
+      openBrowser(dashUrl);
     }
     console.log(`[LiveVisualUsage] Active Claude sessions will auto-register on first hook event.`);
     if (choice === "terminal" || choice === "both") {
