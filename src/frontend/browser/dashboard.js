@@ -197,24 +197,28 @@ function updateTile(tile, s) {
   const pct = Math.min(total / THRESHOLD * 100, 100);
   const left = Math.max(THRESHOLD - total, 0);
 
-  set(tile, "tot-tokens", fmt(total));
-  set(tile, "tot-cost", "$" + (s.cost_usd || 0).toFixed(2));
-  set(tile, "tot-turns", s.turns || 0);
-  set(tile, "tot-tools", s.tool_calls_total || 0);
+  animNum(tile, "tot-tokens", total,                fmtInt);
+  animNum(tile, "tot-cost",   s.cost_usd || 0,      fmtCost2);
+  animNum(tile, "tot-turns",  s.turns || 0,          fmtWhole);
+  animNum(tile, "tot-tools",  s.tool_calls_total||0, fmtWhole);
 
   set(tile, "name", s.project_name || s.session_id.slice(0, 12));
   set(tile, "sid", s.session_id.slice(0, 16) + (s.session_id.length > 16 ? "…" : ""));
-  set(tile, "total", fmt(total));
-  set(tile, "in", fmt(s.tokens_in || 0));
-  set(tile, "out", fmt(s.tokens_out || 0));
-  set(tile, "left", fmt(left));
-  set(tile, "pct", pct.toFixed(0) + "% used");
+  animNum(tile, "total", total,                fmtInt);
+  animNum(tile, "in",    s.tokens_in  || 0,   fmtInt);
+  animNum(tile, "out",   s.tokens_out || 0,   fmtInt);
+  animNum(tile, "left",  left,                fmtInt);
+  animNum(tile, "cost",  s.cost_usd   || 0,   fmtCost4);
+  animNum(tile, "turns", s.turns      || 0,   fmtWhole);
+  animNum(tile, "burn",  s.burn_rate_per_sec || 0, fmtWhole);
+  animNum(tile, "tools", s.tool_calls_total  || 0, fmtWhole);
+
+  // Progress bar — % text and fill width
+  const pctEl = tile.querySelector("[data-field='pct']");
+  countUp(pctEl, pct, n => n.toFixed(0) + "% used");
   tile.querySelector("[data-field='bar']").style.width = pct.toFixed(1) + "%";
-  set(tile, "cost", "$" + (s.cost_usd || 0).toFixed(4));
-  set(tile, "turns", s.turns || 0);
-  set(tile, "burn", Math.round(s.burn_rate_per_sec || 0));
+
   set(tile, "eta", fmtEta(s.eta_to_threshold_sec));
-  set(tile, "tools", s.tool_calls_total || 0);
 
   // Lifecycle badge
   const lc = s.lifecycle || "unknown";
@@ -252,6 +256,35 @@ function set(tile, field, val) {
   const el = tile.querySelector(`[data-field="${field}"]`);
   if (el) el.textContent = val;
 }
+
+// ── Animated number counter ──────────────────────────────
+function countUp(el, toVal, fmt) {
+  if (!el) return;
+  const fromVal = parseFloat(el.dataset.rawVal ?? "0") || 0;
+  el.dataset.rawVal = String(toVal);
+  if (Math.abs(toVal - fromVal) < 0.0001) { el.textContent = fmt(toVal); return; }
+  if (el._af) { cancelAnimationFrame(el._af); el._af = null; }
+  const start = performance.now();
+  const dur = 700;
+  const diff = toVal - fromVal;
+  function step(now) {
+    const t = Math.min((now - start) / dur, 1);
+    const e = 1 - Math.pow(1 - t, 3); // ease-out cubic
+    el.textContent = fmt(fromVal + diff * e);
+    el._af = t < 1 ? requestAnimationFrame(step) : null;
+  }
+  el._af = requestAnimationFrame(step);
+}
+
+function animNum(tile, field, rawVal, formatter) {
+  const el = tile.querySelector(`[data-field="${field}"]`);
+  countUp(el, rawVal, formatter);
+}
+
+const fmtInt  = n => Math.round(n).toLocaleString();
+const fmtCost4 = n => "$" + n.toFixed(4);
+const fmtCost2 = n => "$" + n.toFixed(2);
+const fmtWhole = n => String(Math.round(n));
 
 // ── Topbar ───────────────────────────────────────────────
 function updateTopbar() {
