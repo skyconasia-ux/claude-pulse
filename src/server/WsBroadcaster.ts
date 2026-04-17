@@ -23,11 +23,14 @@ export class WsBroadcaster {
       } catch (err) {
         log.error("failed to send snapshot", { message: (err as Error).message });
       }
+      const connectedAt = Date.now();
       ws.on("close", () => {
         log.info("client disconnected", { clients: this.wss.clients.size - 1 });
+        const duration = Date.now() - connectedAt;
         // setImmediate ensures the ws library has removed the client from wss.clients before we check
+        // Only trigger shutdown if the connection was stable for > 3s — ignores page refreshes and load-time flickers
         setImmediate(() => {
-          if (this.wss.clients.size === 0) this.noClientsCallback?.();
+          if (this.wss.clients.size === 0 && duration >= 3000) this.noClientsCallback?.();
         });
       });
       ws.on("error", (err) => log.error("client socket error", { message: err.message }));
