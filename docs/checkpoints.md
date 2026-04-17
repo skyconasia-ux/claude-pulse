@@ -37,20 +37,19 @@
 
 ## CURRENT CHECKPOINT
 
-### 2026-04-18 — Confirmed Live + Distribution Planning
+### 2026-04-18 — Polish + Persistence + Plan Badge
 
-**Objective:** Verify full live monitoring works end-to-end; plan distribution for other users.
+**Completed since last checkpoint:**
+- **Project renamed** to Claude Pulse everywhere: package.json, all source files, docs, GitHub repo (`skyconasia-ux/claude-pulse`), release zip
+- **Session state persistence** (`data/sessions.json`): saves every 3s + on clean shutdown; loads on startup; bootstrap uses `Math.max` so token counts survive restarts without dropping
+- **Chart tooltip** on TOKEN BURN — LIVE: hover any point to see exact date/time recorded + tokens burned at that point (delta, not cumulative)
+- **Plan badge** per tile: reads `~/.claude/.credentials.json` → shows subscription type (PRO/MAX/FREE) + usage tier label. Note: billing pool switching (Pro included → $20 CC promo → extra credits) is NOT detectable from local files — Anthropic doesn't write that state anywhere locally
+- GitHub repo: `https://github.com/skyconasia-ux/claude-pulse`; release: `ClaudePulse-v1.0.0.zip`
 
-**Completed:**
-- All metrics confirmed live: tokens, cost, turns (784 in active session), tools, burn/s, ETA
-- Each new PowerShell/Claude Code session resets counters to 0 (new JSONL file per session)
-- Counter animation working (700ms ease-out roll-up on all numeric fields)
-- 8 commits pushed to GitHub; repo at `skyconasia-ux/claude-pulse`
-
-**Current state:** Fully operational. Monitoring this session live. Repo is 8 commits ahead — pushing now.
+**Known limitation — cost display:**
+Cost shown is a *calculated estimate* at API rates ($3/M input, $15/M output flat). Actual API pricing differentiates cache reads ($0.30/M) vs cache writes ($3.75/M) vs regular input — so displayed cost is an overestimate. For Pro/promo users: this is the hypothetical API cost, not what you're actually charged (you pay a flat subscription).
 
 **Next steps:**
-- Distribution: build pipeline + Windows release package (Node.js 18+ required)
 - PID tracking → real process kill on Abort
-- Session history persistence to disk
 - Terminal dashboard: multi-session layout
+- Fix cost calculation to use correct cache-tier rates
