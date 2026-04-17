@@ -1,0 +1,9 @@
+{
+  "token_threshold": 100000,
+  "turn_threshold": 20,
+  "refresh_active_ms": 1000,
+  "refresh_idle_ms": 5000,
+  "server_port": 3001,
+  "ws_port": 3001,
+  "otel_enabled": true
+}
