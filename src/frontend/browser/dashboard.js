@@ -115,6 +115,24 @@ function buildTile(sessionId) {
   tile.className = "tile";
   tile.dataset.id = sessionId;
   tile.innerHTML = `
+    <div class="tile-totals">
+      <div class="tot-cell tot-tokens">
+        <div class="tot-label">TOTAL TOKENS</div>
+        <div class="tot-value" data-field="tot-tokens">0</div>
+      </div>
+      <div class="tot-cell tot-cost">
+        <div class="tot-label">TOTAL COST</div>
+        <div class="tot-value" data-field="tot-cost">$0.00</div>
+      </div>
+      <div class="tot-cell tot-turns">
+        <div class="tot-label">TOTAL TURNS</div>
+        <div class="tot-value" data-field="tot-turns">0</div>
+      </div>
+      <div class="tot-cell tot-tools">
+        <div class="tot-label">TOTAL TOOLS</div>
+        <div class="tot-value" data-field="tot-tools">0</div>
+      </div>
+    </div>
     <div class="tile-header">
       <div class="tile-name-wrap">
         <div class="tile-name" data-field="name"></div>
@@ -178,6 +196,11 @@ function updateTile(tile, s) {
   const total = s.tokens_total || 0;
   const pct = Math.min(total / THRESHOLD * 100, 100);
   const left = Math.max(THRESHOLD - total, 0);
+
+  set(tile, "tot-tokens", fmt(total));
+  set(tile, "tot-cost", "$" + (s.cost_usd || 0).toFixed(2));
+  set(tile, "tot-turns", s.turns || 0);
+  set(tile, "tot-tools", s.tool_calls_total || 0);
 
   set(tile, "name", s.project_name || s.session_id.slice(0, 12));
   set(tile, "sid", s.session_id.slice(0, 16) + (s.session_id.length > 16 ? "…" : ""));
