@@ -4,6 +4,7 @@ Real-time telemetry and visualization for Claude Code CLI.
 
 ## Quick Start
 
+cp config.example.json config.json
 npm install
 npm run dev
 

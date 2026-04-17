@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.claude/
+.superpowers/
+data/
+logs/
+skills/
+system/
+tools/
+config.json
