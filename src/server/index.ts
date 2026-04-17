@@ -7,7 +7,10 @@ import { SessionStore } from "../monitor/SessionStore";
 import { WsBroadcaster } from "./WsBroadcaster";
 import { createHooksRouter } from "../wrapper/HooksAdapter";
 import { createOtelRouter } from "../wrapper/OtelAdapter";
+import { makeLogger } from "./logger";
 import path from "path";
+
+const log = makeLogger("TelemetryServer");
 
 const app = express();
 app.use(express.json());
@@ -70,6 +73,8 @@ async function promptFrontend(): Promise<"browser" | "terminal" | "both"> {
 async function main() {
   const choice = await promptFrontend();
   server.listen(config.server_port, () => {
+    log.info("HTTP server started", { port: config.server_port });
+    log.info("WebSocket server started", { port: config.ws_port });
     console.log(`\n[LiveVisualUsage] Server running on http://localhost:${config.server_port}`);
     console.log(`[LiveVisualUsage] WebSocket on ws://localhost:${config.ws_port}`);
     if (choice === "browser" || choice === "both") {
@@ -79,9 +84,10 @@ async function main() {
       console.log(`[LiveVisualUsage] Starting terminal dashboard...`);
       // Dynamic import — terminal module added in Task 8; path kept as string to avoid compile-time resolution
       const termPath = "../frontend/terminal/index";
-      import(/* webpackIgnore: true */ termPath).catch(console.error);
+      import(/* webpackIgnore: true */ termPath).catch((err: Error) => log.error("terminal dashboard failed to load", { message: err.message }));
     }
   });
+  server.on("error", (err) => log.error("HTTP server error", { message: err.message }));
   startTick();
 }
 

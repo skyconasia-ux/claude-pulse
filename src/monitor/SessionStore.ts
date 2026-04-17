@@ -1,6 +1,9 @@
 import { EventEmitter } from "events";
 import { NormalizedEvent, SessionState, AppConfig } from "../types";
 import { v4 as uuidv4 } from "uuid";
+import { makeLogger } from "../server/logger";
+
+const log = makeLogger("SessionStore");
 
 const SOFT_TURN = 10;
 const CHECKPOINT_COOLDOWN_TURNS = 3;
@@ -38,7 +41,7 @@ export class SessionStore extends EventEmitter {
   apply(event: NormalizedEvent): void {
     // Drop out-of-order events older than 5s within current session
     if (event.timestamp_ms < this.lastEventTs - 5000) {
-      console.warn(`[SessionStore] dropped out-of-order event: ${event.type} at ${event.timestamp_ms}`);
+      log.warn("dropped out-of-order event", { type: event.type, timestamp_ms: event.timestamp_ms });
       return;
     }
 
@@ -119,6 +122,7 @@ export class SessionStore extends EventEmitter {
     ) {
       this.checkpointMandatoryFiredForTurn = turns;
       this.state.last_checkpoint_turn = turns;
+      log.warn("checkpoint_mandatory fired", { turns, token_pct: (tokenPct * 100).toFixed(1) });
       this.emit("checkpoint_mandatory", { ...this.state });
       return;
     }
@@ -131,6 +135,7 @@ export class SessionStore extends EventEmitter {
     ) {
       this.checkpointSuggestedFiredForTurn = turns;
       this.state.last_checkpoint_turn = turns;
+      log.info("checkpoint_suggested fired", { turns, token_pct: (tokenPct * 100).toFixed(1) });
       this.emit("checkpoint_suggested", { ...this.state });
     }
   }

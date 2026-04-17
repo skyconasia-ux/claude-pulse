@@ -1,6 +1,9 @@
 import { Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { SessionState, WsMessage } from "../types";
+import { makeLogger } from "./logger";
+
+const log = makeLogger("WsBroadcaster");
 
 export class WsBroadcaster {
   private wss: WebSocketServer;
@@ -9,11 +12,14 @@ export class WsBroadcaster {
   constructor(server: Server) {
     this.wss = new WebSocketServer({ server });
     this.wss.on("connection", (ws: WebSocket) => {
+      log.info("client connected", { clients: this.wss.clients.size });
       if (this.currentState) {
         const msg: WsMessage = { type: "snapshot", state: this.currentState };
         ws.send(JSON.stringify(msg));
+        log.debug("snapshot sent to new client");
       }
-      ws.on("error", () => {});
+      ws.on("close", () => log.info("client disconnected", { clients: this.wss.clients.size - 1 }));
+      ws.on("error", (err) => log.error("client socket error", { message: err.message }));
     });
   }
 
@@ -38,7 +44,11 @@ export class WsBroadcaster {
     const payload = JSON.stringify(msg);
     for (const client of this.wss.clients) {
       if (client.readyState === WebSocket.OPEN) {
-        client.send(payload);
+        try {
+          client.send(payload);
+        } catch (err) {
+          log.error("broadcast send failed", { message: (err as Error).message });
+        }
       }
     }
   }

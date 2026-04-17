@@ -23,6 +23,20 @@ Add to `.claude/settings.json`:
   }
 }
 
+## Logs
+
+While the server is running, tail `logs/app.log` for structured JSON output:
+
+```bash
+tail -f logs/app.log
+```
+
+Set `LOG_LEVEL=debug` to see verbose telemetry messages (hook events, WS snapshots, etc.):
+
+```bash
+LOG_LEVEL=debug npm run dev
+```
+
 ## Stack
 TypeScript · Node.js · ws · express · blessed-contrib
 
