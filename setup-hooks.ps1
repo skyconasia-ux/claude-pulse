@@ -1,4 +1,4 @@
-# LiveVisualUsage — Hook Setup Script
+# Claude Pulse — Hook Setup Script
 # Merges the required hooks into ~/.claude/settings.json without overwriting existing config.
 
 $settingsPath = "$env:USERPROFILE\.claude\settings.json"
@@ -7,7 +7,7 @@ $hookCmd = 'powershell -NoProfile -Command "$body = $input | Out-String; if ($bo
 $hookEntry = @{ type = "command"; command = $hookCmd }
 
 Write-Host ""
-Write-Host "  LiveVisualUsage Hook Setup" -ForegroundColor Cyan
+Write-Host "  Claude Pulse Hook Setup" -ForegroundColor Cyan
 Write-Host "  ==========================" -ForegroundColor Cyan
 Write-Host ""
 

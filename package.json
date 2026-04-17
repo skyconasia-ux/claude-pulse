@@ -1,7 +1,7 @@
 {
-  "name": "livevisualusage",
+  "name": "claude-pulse",
   "version": "1.0.0",
-  "description": "",
+  "description": "Real-time Claude Code session monitor",
   "main": "dist/server/index.js",
   "directories": {
     "doc": "docs",

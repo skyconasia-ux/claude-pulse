@@ -1,4 +1,4 @@
-# LiveVisualUsage
+# Claude Pulse
 
 Real-time telemetry and visualization for Claude Code CLI.  
 Monitor token usage, cost, turn count, and session lifecycle across multiple concurrent Claude instances — from a browser dashboard or terminal UI.
@@ -7,7 +7,7 @@ Monitor token usage, cost, turn count, and session lifecycle across multiple con
 
 ## What It Does
 
-LiveVisualUsage runs a local server that receives telemetry from Claude Code hooks and OpenTelemetry, then streams live data to a browser dashboard and/or a terminal dashboard via WebSocket.
+Claude Pulse runs a local server that receives telemetry from Claude Code hooks and OpenTelemetry, then streams live data to a browser dashboard and/or a terminal dashboard via WebSocket.
 
 - **Multi-session monitoring** — one neon-cyber tile per Claude project, all in the same browser tab
 - **Full lifecycle visibility** — tracks every state: `tool_use`, `idle`, `waiting`, `closed`, `stopped`, `unknown`, and more

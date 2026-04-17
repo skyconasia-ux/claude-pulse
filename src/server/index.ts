@@ -49,7 +49,7 @@ function shutdown() {
   if (isShuttingDown) return;
   isShuttingDown = true;
   log.info("shutting down cleanly");
-  console.log("\n[LiveVisualUsage] Shutting down — port released.");
+  console.log("\n[Claude Pulse] Shutting down — port released.");
   journalWatcher.stop();
   registry.destroy();
   broadcaster.close();
@@ -60,7 +60,7 @@ function shutdown() {
 broadcaster.onNoClients(() => {
   if (shutdownTimer || isShuttingDown) return;
   log.info("no clients — shutting down in 3s");
-  console.log("[LiveVisualUsage] Browser closed — shutting down in 3s...");
+  console.log("[Claude Pulse] Browser closed — shutting down in 3s...");
   shutdownTimer = setTimeout(shutdown, SHUTDOWN_GRACE_MS);
 });
 
@@ -102,16 +102,16 @@ async function main() {
   server.listen(config.server_port, () => {
     log.info("HTTP server started", { port: config.server_port });
     log.info("WebSocket server started", { port: config.ws_port });
-    console.log(`\n[LiveVisualUsage] Server running on http://localhost:${config.server_port}`);
-    console.log(`[LiveVisualUsage] WebSocket on ws://localhost:${config.ws_port}`);
+    console.log(`\n[Claude Pulse] Server running on http://localhost:${config.server_port}`);
+    console.log(`[Claude Pulse] WebSocket on ws://localhost:${config.ws_port}`);
     if (choice === "browser" || choice === "both") {
       const dashUrl = `http://localhost:${config.server_port}/dashboard`;
-      console.log(`[LiveVisualUsage] Browser dashboard → ${dashUrl}`);
+      console.log(`[Claude Pulse] Browser dashboard → ${dashUrl}`);
       openBrowser(dashUrl);
     }
-    console.log(`[LiveVisualUsage] Active Claude sessions will auto-register on first hook event.`);
+    console.log(`[Claude Pulse] Active Claude sessions will auto-register on first hook event.`);
     if (choice === "terminal" || choice === "both") {
-      console.log(`[LiveVisualUsage] Starting terminal dashboard...`);
+      console.log(`[Claude Pulse] Starting terminal dashboard...`);
       const termPath = "../frontend/terminal/index";
       import(/* webpackIgnore: true */ termPath).catch((err: Error) => log.error("terminal dashboard failed to load", { message: err.message }));
     }

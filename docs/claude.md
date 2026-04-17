@@ -1,6 +1,6 @@
 # Claude Working Memory
 
-Project: LiveVisualUsage
+Project: Claude Pulse
 Last updated: 2026-04-18
 
 ## Rules
@@ -15,7 +15,7 @@ Last updated: 2026-04-18
 - Fully operational live monitoring — 2026-04-18
 - All metrics from JSONL polling: tokens, cost, turns, tools, burn/s, ETA
 - 28/28 tests passing
-- GitHub: https://github.com/skyconasia-ux/live-visual-usage (public, MIT)
+- GitHub: https://github.com/skyconasia-ux/claude-pulse (public, MIT)
 - Port: 3001 (HTTP + WS on same port)
 - Hooks: `~/.claude/settings.json` PostToolUse/Stop/Notification → PowerShell → localhost:3001/hook
 - JournalWatcher: 1s poll, 1h window, 1 file per project dir, delta input tokens

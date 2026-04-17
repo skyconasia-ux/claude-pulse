@@ -1,7 +1,7 @@
 @echo off
-title LiveVisualUsage
+title Claude Pulse
 echo.
-echo  LiveVisualUsage - Claude Code Session Monitor
+echo  Claude Pulse - Claude Code Session Monitor
 echo  ================================================
 echo.
 

@@ -6,7 +6,7 @@ import { SessionState, WsMessage } from "../../types";
 const WS_URL = "ws://localhost:3001";
 const BURN_HISTORY_SIZE = 30;
 
-const screen = blessed.screen({ smartCSR: true, title: "LiveVisualUsage" });
+const screen = blessed.screen({ smartCSR: true, title: "Claude Pulse" });
 const grid = new contrib.grid({ rows: 12, cols: 12, screen });
 
 const burnChart = grid.set(0, 0, 6, 8, contrib.bar, {
@@ -136,7 +136,7 @@ function update(state: SessionState) {
 
 function connect() {
   const ws = new WebSocket(WS_URL);
-  ws.on("open", () => log2("Connected to LiveVisualUsage server"));
+  ws.on("open", () => log2("Connected to Claude Pulse server"));
   ws.on("message", (data) => {
     let msg: WsMessage;
     try {

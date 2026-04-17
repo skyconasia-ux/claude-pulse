@@ -45,7 +45,7 @@
 - All metrics confirmed live: tokens, cost, turns (784 in active session), tools, burn/s, ETA
 - Each new PowerShell/Claude Code session resets counters to 0 (new JSONL file per session)
 - Counter animation working (700ms ease-out roll-up on all numeric fields)
-- 8 commits pushed to GitHub; repo at `skyconasia-ux/live-visual-usage`
+- 8 commits pushed to GitHub; repo at `skyconasia-ux/claude-pulse`
 
 **Current state:** Fully operational. Monitoring this session live. Repo is 8 commits ahead — pushing now.
 
