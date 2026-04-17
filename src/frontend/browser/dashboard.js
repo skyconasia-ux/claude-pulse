@@ -3,8 +3,7 @@ const THRESHOLD = 100000;
 
 let ws;
 let sessions = {};        // keyed by session_id
-let chartHistory = {};    // session_id → [{turn, tokens, toolCalls}]
-let turnToolCalls = {};   // session_id → tool call count for current in-progress turn
+let chartHistory = {};    // session_id → [{toolCalls, tokens}] — time-series, one point per update
 let startedAt = null;
 let elapsedTimer = null;
 let pendingAbortId = null;
@@ -55,24 +54,10 @@ function setConnected(live) {
 function recordHistory(s) {
   const sid = s.session_id;
   if (!chartHistory[sid]) chartHistory[sid] = [];
-  if (!turnToolCalls[sid]) turnToolCalls[sid] = 0;
-
-  // Count tool_use lifecycle updates as tool calls this turn
-  if (s.lifecycle === "tool_use") turnToolCalls[sid]++;
-
   const hist = chartHistory[sid];
-  const turn = s.turns || 0;
-  const last = hist[hist.length - 1];
-
-  if (!last || last.turn !== turn) {
-    if (last) last.toolCalls = turnToolCalls[sid];  // seal previous turn's count
-    hist.push({ turn, tokens: s.tokens_total || 0, toolCalls: 0 });
-    if (hist.length > 60) hist.shift();
-    turnToolCalls[sid] = 0;  // reset for new turn
-  } else {
-    last.tokens = s.tokens_total || 0;
-    last.toolCalls = turnToolCalls[sid];
-  }
+  // Record every update as a time-series point — gives fluid live movement
+  hist.push({ toolCalls: s.tool_calls_total || 0, tokens: s.tokens_total || 0 });
+  if (hist.length > 120) hist.shift();
 }
 
 function handleMessage(msg) {
@@ -165,13 +150,13 @@ function buildTile(sessionId) {
       <div class="progress-track"><div class="progress-fill" data-field="bar" style="width:0%"></div></div>
     </div>
     <div class="chart-wrap">
-      <div class="chart-label" data-field="chart-label">ACTIVITY — PER TURN</div>
+      <div class="chart-label" data-field="chart-label">TOOL CALLS — LIVE</div>
       <canvas class="tile-chart" data-field="chart"></canvas>
     </div>
     <div class="stats-row">
       <div class="stat stat-cost"><div class="stat-label">COST</div><div class="stat-value" data-field="cost">$0.00</div></div>
       <div class="stat stat-turns"><div class="stat-label">TURNS</div><div class="stat-value" data-field="turns">0</div></div>
-      <div class="stat stat-burn"><div class="stat-label">BURN/S</div><div class="stat-value" data-field="burn">0</div></div>
+      <div class="stat stat-tools"><div class="stat-label">TOOLS</div><div class="stat-value" data-field="tools">0</div></div>
       <div class="stat stat-eta"><div class="stat-label">ETA</div><div class="stat-value" data-field="eta">—</div></div>
     </div>
     <div class="tile-footer">
@@ -201,7 +186,7 @@ function updateTile(tile, s) {
   tile.querySelector("[data-field='bar']").style.width = pct.toFixed(1) + "%";
   set(tile, "cost", "$" + (s.cost_usd || 0).toFixed(4));
   set(tile, "turns", s.turns || 0);
-  set(tile, "burn", Math.round(s.burn_rate_per_sec || 0));
+  set(tile, "tools", s.tool_calls_total || 0);
   set(tile, "eta", fmtEta(s.eta_to_threshold_sec));
 
   // Lifecycle badge
@@ -224,7 +209,7 @@ function updateTile(tile, s) {
   if (canvas) {
     const hist = chartHistory[s.session_id] || [];
     const hasTokens = hist.some(p => p.tokens > 0);
-    set(tile, "chart-label", hasTokens ? "TOKEN BURN — PER TURN" : "TOOL CALLS — PER TURN");
+    set(tile, "chart-label", hasTokens ? "TOKEN BURN — LIVE" : "TOOL CALLS — LIVE");
     drawChart(canvas, s.session_id);
   }
 
@@ -326,9 +311,9 @@ function drawChart(canvas, sessionId) {
     return;
   }
 
-  // Prefer real token data (OTEL); fall back to tool call count as activity proxy
+  // Use token data when available (OTEL), otherwise tool call count as activity proxy
   const hasTokens = hist.some(p => p.tokens > 0);
-  const vals = hist.map(p => hasTokens ? p.tokens : (p.toolCalls || 0));
+  const vals = hist.map(p => hasTokens ? p.tokens : p.toolCalls);
   const maxVal = Math.max(...vals, 1);
   const pad = { t: 8, b: 8, l: 4, r: 4 };
   const cW = W - pad.l - pad.r;
