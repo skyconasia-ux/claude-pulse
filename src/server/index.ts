@@ -145,8 +145,8 @@ let historyCache: { data: unknown; expires: number } | null = null;
 
 function execJson<T>(cmd: string): Promise<T> {
   return new Promise((resolve, reject) => {
-    exec(cmd, { maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
-      if (err) return reject(err);
+    exec(cmd, { maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
+      if (err) return reject(Object.assign(err, { stderr }));
       try { resolve(JSON.parse(stdout) as T); }
       catch (e) { reject(e); }
     });
@@ -166,7 +166,7 @@ app.get("/api/history", async (_req: Request, res: Response) => {
     historyCache = { data, expires: Date.now() + 10_000 };
     res.json(data);
   } catch (err) {
-    log.warn("history fetch failed", { message: (err as Error).message });
+    log.warn("history fetch failed", { message: (err as Error).message, stderr: (err as any).stderr });
     res.status(500).json({ error: "clauditor unavailable" });
   }
 });
