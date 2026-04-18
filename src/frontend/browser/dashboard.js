@@ -178,6 +178,11 @@ function buildTile(sessionId) {
         <span class="badge badge-stale" data-field="stale" style="display:none">STALE</span>
       </div>
     </div>
+    <div class="tile-time-row">
+      ⏱ session <span class="ttr-val" data-field="elapsed-sess">—</span>
+      <span class="ttr-sep">|</span>
+      project <span class="ttr-val" data-field="elapsed-proj">—</span>
+    </div>
     <div class="plan-bar" data-field="plan-bar"></div>
     <div>
       <div class="token-hero-label">TOTAL TOKENS</div>
@@ -322,6 +327,8 @@ function updateTile(tile, s) {
     (level === "yellow" ? " alert-yellow" : "") +
     (level === "red" ? " alert-red" : "");
   tile.dataset.id = s.session_id;
+  if (s.started_at) tile.dataset.startedAt = s.started_at;
+  if (s.project_first_seen_ms) tile.dataset.projectFirstSeen = s.project_first_seen_ms;
 }
 
 function set(tile, field, val) {
@@ -357,6 +364,17 @@ const fmtInt  = n => Math.round(n).toLocaleString();
 const fmtCost4 = n => "$" + n.toFixed(4);
 const fmtCost2 = n => "$" + n.toFixed(2);
 const fmtWhole = n => String(Math.round(n));
+
+function fmtElapsed(ms) {
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return s + 's';
+  const m = Math.floor(s / 60);
+  if (m < 60) return m + 'm';
+  const h = Math.floor(m / 60), rm = m % 60;
+  if (h < 24) return h + 'h ' + rm + 'm';
+  const d = Math.floor(h / 24), rh = h % 24;
+  return d + 'd ' + rh + 'h';
+}
 
 // ── Topbar ───────────────────────────────────────────────
 function updateTopbar() {
@@ -707,5 +725,17 @@ document.getElementById("history-divider")?.addEventListener("click", () => {
 
 // Restore persisted open state on load
 if (historyOpen) setHistoryOpen(true);
+
+setInterval(() => {
+  const now = Date.now();
+  document.querySelectorAll('.tile').forEach(el => {
+    const sa = el.dataset.startedAt;
+    const pf = el.dataset.projectFirstSeen;
+    const sessEl = el.querySelector('[data-field="elapsed-sess"]');
+    const projEl = el.querySelector('[data-field="elapsed-proj"]');
+    if (sessEl && sa) sessEl.textContent = fmtElapsed(now - Number(sa));
+    if (projEl && pf) projEl.textContent = fmtElapsed(now - Number(pf));
+  });
+}, 1000);
 
 connect();
