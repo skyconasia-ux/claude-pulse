@@ -1,10 +1,24 @@
 import { NormalizedEvent } from "../types";
 
-const COST_PER_INPUT_TOKEN = 0.000003;
-const COST_PER_OUTPUT_TOKEN = 0.000015;
+const MODEL_RATES: Record<string, { input: number; output: number }> = {
+  "claude-opus-4-7":   { input: 0.000015,    output: 0.000075   },
+  "claude-opus-4-5":   { input: 0.000015,    output: 0.000075   },
+  "claude-sonnet-4-6": { input: 0.000003,    output: 0.000015   },
+  "claude-sonnet-4-5": { input: 0.000003,    output: 0.000015   },
+  "claude-haiku-4-5":  { input: 0.00000025,  output: 0.00000125 },
+};
 
-function calcCost(input: number, output: number): number {
-  return input * COST_PER_INPUT_TOKEN + output * COST_PER_OUTPUT_TOKEN;
+const DEFAULT_RATE = { input: 0.000003, output: 0.000015 };
+
+function getRates(model?: string): { input: number; output: number } {
+  if (!model) return DEFAULT_RATE;
+  const key = Object.keys(MODEL_RATES).find(k => model.startsWith(k));
+  return key ? MODEL_RATES[key] : DEFAULT_RATE;
+}
+
+function calcCost(input: number, output: number, model?: string): number {
+  const r = getRates(model);
+  return input * r.input + output * r.output;
 }
 
 function extractProjectName(cwd?: string): string {
@@ -26,13 +40,15 @@ export function normalizeHookPayload(raw: Record<string, unknown>): NormalizedEv
   const usage = (raw.usage as { input_tokens?: number; output_tokens?: number }) ?? {};
   const input = usage.input_tokens ?? 0;
   const output = usage.output_tokens ?? 0;
+  const model = raw.model as string | undefined;
   return {
     session_id: raw.session_id as string | undefined,
     project_name: extractProjectName(raw.cwd as string | undefined),
+    model,
     source: "hook",
     type: hookEventToType(raw.hook_event_name as string),
     tokens: { input, output },
-    cost_usd: calcCost(input, output),
+    cost_usd: calcCost(input, output, model),
     timestamp_ms: (raw.timestamp_ms as number) || Date.now(),
     metadata: raw,
   };
@@ -73,16 +89,19 @@ export function normalizeOtelPayload(raw: Record<string, unknown>): NormalizedEv
       for (const ss of rs.scopeSpans ?? []) {
         for (const span of ss.spans ?? []) {
           const attrs = span.attributes ?? [];
-          const get = (key: string) => attrs.find(a => a.key === key)?.value?.intValue ?? 0;
-          const input = get("input_tokens");
-          const output = get("output_tokens");
+          const getInt = (key: string) => attrs.find(a => a.key === key)?.value?.intValue ?? 0;
+          const getStrAttr = (key: string) => attrs.find(a => a.key === key)?.value?.stringValue;
+          const input = getInt("input_tokens");
+          const output = getInt("output_tokens");
+          const model = getStrAttr("model");
           events.push({
             session_id: sessionId,
             project_name: extractProjectName(cwd),
+            model,
             source: "otel",
             type: spanToType(span.name),
             tokens: { input, output },
-            cost_usd: calcCost(input, output),
+            cost_usd: calcCost(input, output, model),
             timestamp_ms: Math.floor(Number(span.startTimeUnixNano) / 1_000_000),
             metadata: span as unknown as Record<string, unknown>,
           });

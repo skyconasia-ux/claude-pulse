@@ -6,6 +6,7 @@ export type LifecycleState =
 export interface NormalizedEvent {
   session_id?: string;
   project_name?: string;
+  model?: string;
   source: "hook" | "otel" | "journal";
   type: "session_start" | "session_end" | "tool_use" | "turn_end" | "notification" | "token_delta";
   tokens: { input: number; output: number };
@@ -37,6 +38,9 @@ export interface SessionState {
   last_notification?: string;
   notification_level?: "warn" | "critical";
   project_first_seen_ms?: number;
+  model_last?: string;
+  models?: Record<string, { tokens_in: number; tokens_out: number; cost_usd: number }>;
+  weighted_tokens_total?: number;
 }
 
 export interface AccountInfo {

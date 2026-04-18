@@ -78,3 +78,52 @@ describe("normalizeOtelPayload", () => {
     expect(events).toEqual([]);
   });
 });
+
+describe("EventNormalizer — model extraction and model-aware costs", () => {
+  it("extracts model from hook payload", () => {
+    const raw = {
+      hook_event_name: "PostToolUse",
+      model: "claude-sonnet-4-6",
+      usage: { input_tokens: 100, output_tokens: 50 },
+      timestamp_ms: 1000,
+    };
+    const event = normalizeHookPayload(raw);
+    expect(event.model).toBe("claude-sonnet-4-6");
+  });
+
+  it("uses Opus rates for Opus model hook events", () => {
+    const raw = {
+      hook_event_name: "PostToolUse",
+      model: "claude-opus-4-7",
+      usage: { input_tokens: 100000, output_tokens: 0 },
+      timestamp_ms: 1000,
+    };
+    const event = normalizeHookPayload(raw);
+    // Opus input rate: $15/MTok = 0.000015 per token
+    expect(event.cost_usd).toBeCloseTo(100000 * 0.000015, 5);
+  });
+
+  it("uses Haiku rates for Haiku model hook events", () => {
+    const raw = {
+      hook_event_name: "PostToolUse",
+      model: "claude-haiku-4-5-20251001",
+      usage: { input_tokens: 100000, output_tokens: 0 },
+      timestamp_ms: 1000,
+    };
+    const event = normalizeHookPayload(raw);
+    // Haiku input rate: $0.25/MTok = 0.00000025 per token
+    expect(event.cost_usd).toBeCloseTo(100000 * 0.00000025, 8);
+  });
+
+  it("falls back to Sonnet rates when model is absent", () => {
+    const raw = {
+      hook_event_name: "PostToolUse",
+      usage: { input_tokens: 100000, output_tokens: 0 },
+      timestamp_ms: 1000,
+    };
+    const event = normalizeHookPayload(raw);
+    // Sonnet input rate: $3/MTok = 0.000003 per token
+    expect(event.cost_usd).toBeCloseTo(100000 * 0.000003, 5);
+    expect(event.model).toBeUndefined();
+  });
+});
