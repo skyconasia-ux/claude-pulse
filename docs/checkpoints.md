@@ -60,3 +60,15 @@
 - 34/34 tests passing
 
 **Next step:** PID tracking → real process kill on Abort
+
+---
+
+### 2026-04-18 — Tile Enhancements: Elapsed Time + Usage Warnings
+
+**Completed:**
+- Session elapsed time + project age (first-ever session for project) displayed in each tile time row
+- `project_first_seen_ms` persisted in `data/sessions.json` alongside sessions; backward-compatible migration from bare-array format
+- Usage-limit warning banner per tile: extracts message from Claude Code Notification hook, amber (≥70%) or red (≥90%), sticky until session ends
+- 41/41 tests passing
+
+**Next step:** Spec B — PID tracking + real process kill on Abort, cache-tier cost rates, terminal multi-session layout
