@@ -197,7 +197,7 @@ function buildTile(sessionId) {
           <div class="seg-val" data-field="out">0</div>
         </div>
         <div class="seg seg-left">
-          <div class="seg-label">LEFT</div>
+          <div class="seg-label">BUDGET LEFT</div>
           <div class="seg-val" data-field="left">—</div>
         </div>
       </div>
@@ -269,9 +269,10 @@ function buildTile(sessionId) {
 }
 
 function updateTile(tile, s) {
-  const total = s.tokens_total || 0;
-  const pct = Math.min(total / THRESHOLD * 100, 100);
-  const left = Math.max(THRESHOLD - total, 0);
+  const total    = s.tokens_total || 0;
+  const weighted = s.weighted_tokens_total ?? total;
+  const pct      = Math.min(weighted / THRESHOLD * 100, 100);
+  const left     = Math.max(THRESHOLD - weighted, 0);
 
   animNum(tile, "tot-tokens", total,                fmtInt);
   animNum(tile, "tot-cost",   s.cost_usd || 0,      fmtCost2);
