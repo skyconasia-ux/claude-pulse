@@ -125,6 +125,7 @@ export class SessionStore extends EventEmitter {
         this.state.last_seen_ms = event.timestamp_ms;
         this.state.turns += 1;
         this.state.tool_calls_total += toolsDelta;
+        if (event.pid !== undefined) this.setPid(event.pid);
         this.accumulateModel(event);
       }
 
