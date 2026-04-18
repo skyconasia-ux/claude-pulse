@@ -221,6 +221,10 @@ function buildTile(sessionId) {
       <div class="stat stat-eta"><div class="stat-label">ETA</div><div class="stat-value" data-field="eta">—</div></div>
       <div class="stat stat-tools"><div class="stat-label">TOOLS</div><div class="stat-value" data-field="tools">0</div></div>
     </div>
+    <div class="tile-warn-banner">
+      <span class="tile-warn-icon">⚠</span>
+      <span class="tile-warn-msg"></span>
+    </div>
     <div class="tile-footer">
       <span class="alert-pill" data-field="alert">● GREEN</span>
       <div style="display:flex;gap:8px;">
@@ -329,6 +333,19 @@ function updateTile(tile, s) {
   tile.dataset.id = s.session_id;
   if (s.started_at) tile.dataset.startedAt = s.started_at;
   if (s.project_first_seen_ms) tile.dataset.projectFirstSeen = s.project_first_seen_ms;
+
+  // Usage warning banner
+  const banner = tile.querySelector('.tile-warn-banner');
+  if (banner) {
+    if (s.last_notification) {
+      banner.classList.add('open');
+      banner.classList.toggle('level-warn',     s.notification_level === 'warn');
+      banner.classList.toggle('level-critical', s.notification_level === 'critical');
+      banner.querySelector('.tile-warn-msg').textContent = s.last_notification;
+    } else {
+      banner.classList.remove('open', 'level-warn', 'level-critical');
+    }
+  }
 }
 
 function set(tile, field, val) {

@@ -176,6 +176,22 @@
     .tile-time-row .ttr-val { color: rgba(0,255,240,0.6); }
     .tile-time-row .ttr-sep { color: rgba(255,255,255,0.12); }
 
+    .tile-warn-banner {
+      display: none; align-items: center; gap: 8px;
+      border-radius: 5px; padding: 6px 10px;
+      font-size: 9px; letter-spacing: 1px; font-weight: bold;
+      animation: pulse 1s ease-in-out infinite;
+    }
+    .tile-warn-banner.open { display: flex; }
+    .tile-warn-banner.level-warn {
+      background: rgba(255,170,0,0.08); border: 1px solid rgba(255,170,0,0.35); color: #ffaa00;
+    }
+    .tile-warn-banner.level-critical {
+      background: rgba(255,68,85,0.08); border: 1px solid rgba(255,68,85,0.4); color: #ff4455;
+    }
+    .tile-warn-icon { font-size: 11px; }
+    .tile-warn-msg  { flex: 1; }
+
     .chart-wrap { position: relative; }
     .chart-label { font-size: 9px; letter-spacing: 2px; color: var(--dim); margin-bottom: 5px; }
     .tile-chart { display: block; width: 100%; height: 72px; border-radius: 4px; cursor: crosshair; }
