@@ -50,23 +50,32 @@
 ### 2026-04-18 — Tile Enhancements: Elapsed Time + Usage Warnings
 - Session + project elapsed time row per tile; `project_first_seen_ms` persisted (backward-compat migration); usage-limit warning banner (amber ≥70%, red ≥90%); 41/41 tests
 
+### 2026-04-18 — Model-Aware Token Tracking
+- Per-model cost rates (Opus/Sonnet/Haiku); `model` extracted from hook + OTel payloads
+- `accumulateModel()` in SessionStore: per-model token/cost map, `model_last`, `weighted_tokens_total`
+- Weighted Sonnet-equivalent budget bar in tiles (Opus×5, Haiku×0.08, Sonnet×1); label "BUDGET LEFT"
+- Per-model breakdown section in each tile; alert/ETA use weighted budget; 51/51 tests
+
 ---
 
 ## CURRENT CHECKPOINT
 
-### 2026-04-18 — Model-Aware Token Tracking (plan written, not yet executed)
+### 2026-04-18 — Model-Aware Token Tracking (COMPLETE)
 
 **Objective:** Per-model token breakdown, weighted Sonnet-equivalent budget bar, correct cost rates per model.
 
 **Completed:**
-- All tile enhancements shipped (elapsed time, usage banner, first-seen tracking) — 41/41 tests
-- Implementation plan written: `docs/superpowers/plans/2026-04-18-model-aware-token-tracking.md`
+- Model rates in EventNormalizer: Opus $15/$75, Sonnet $3/$15, Haiku $0.25/$1.25 per MTok; longest-prefix matching
+- `NormalizedEvent.model` field added; extracted from hook payload + OTel span attributes
+- `SessionStore.accumulateModel()`: per-model map, `model_last`, `weighted_tokens_total` (undefined at init)
+- Weighted progress bar + "BUDGET LEFT" label; per-model breakdown in each tile
+- All alert/ETA/checkpoint logic uses `weighted_tokens_total ?? tokens_total`
+- 51/51 tests; verified end-to-end via WebSocket (weighted=750K from 400K Sonnet+70K Opus, alert=yellow@75%)
 
-**Current progress:** Plan ready, not yet implemented.
+**Current progress:** Fully implemented and committed.
 
-**Next step:** Execute model-aware token tracking plan (6 tasks).
+**Next step:** PID tracking → real process kill on Abort.
 
 **Pending:**
-- Model-aware token tracking (Tasks 1–6 in plan)
 - PID tracking → real process kill on Abort
 - Terminal multi-session layout
