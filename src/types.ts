@@ -7,6 +7,7 @@ export interface NormalizedEvent {
   session_id?: string;
   project_name?: string;
   model?: string;
+  pid?: number;
   source: "hook" | "otel" | "journal";
   type: "session_start" | "session_end" | "tool_use" | "turn_end" | "notification" | "token_delta";
   tokens: { input: number; output: number };
@@ -39,6 +40,7 @@ export interface SessionState {
   notification_level?: "warn" | "critical";
   project_first_seen_ms?: number;
   model_last?: string;                  // set by SessionStore.accumulateModel
+  pid?: number;
   models?: Record<string, { tokens_in: number; tokens_out: number; cost_usd: number }>; // set by SessionStore.accumulateModel
   weighted_tokens_total?: number;       // Sonnet-equivalent budget units, set by SessionStore.accumulateModel
 }

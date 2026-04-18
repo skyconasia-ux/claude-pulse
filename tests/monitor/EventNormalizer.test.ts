@@ -126,4 +126,29 @@ describe("EventNormalizer — model extraction and model-aware costs", () => {
     expect(event.cost_usd).toBeCloseTo(100000 * 0.000003, 5);
     expect(event.model).toBeUndefined();
   });
+
+  it("extracts pid from hook payload", () => {
+    const raw = {
+      hook_event_name: "PostToolUse",
+      session_id: "abc",
+      cwd: "/home/user/MyProject",
+      pid: 12345,
+      usage: { input_tokens: 100, output_tokens: 50 },
+      timestamp_ms: 1000,
+    };
+    const event = normalizeHookPayload(raw);
+    expect(event.pid).toBe(12345);
+  });
+
+  it("leaves pid undefined when not in payload", () => {
+    const raw = {
+      hook_event_name: "PostToolUse",
+      session_id: "abc",
+      cwd: "/home/user/MyProject",
+      usage: { input_tokens: 10, output_tokens: 5 },
+      timestamp_ms: 1000,
+    };
+    const event = normalizeHookPayload(raw);
+    expect(event.pid).toBeUndefined();
+  });
 });

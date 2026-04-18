@@ -42,10 +42,12 @@ export function normalizeHookPayload(raw: Record<string, unknown>): NormalizedEv
   const input = usage.input_tokens ?? 0;
   const output = usage.output_tokens ?? 0;
   const model = raw.model as string | undefined;
+  const pid = typeof raw.pid === "number" ? raw.pid : undefined;
   return {
     session_id: raw.session_id as string | undefined,
     project_name: extractProjectName(raw.cwd as string | undefined),
     model,
+    pid,
     source: "hook",
     type: hookEventToType(raw.hook_event_name as string),
     tokens: { input, output },
