@@ -170,6 +170,8 @@ export class SessionStore extends EventEmitter {
     this.state.last_seen_ms = event.timestamp_ms;
     this.state.is_stale = false;
 
+    if (event.pid !== undefined) this.setPid(event.pid);
+
     if (event.type === "turn_end") {
       this.state.turns += 1;
       this.state.activity_state = "idle";
@@ -206,6 +208,10 @@ export class SessionStore extends EventEmitter {
 
   setProjectFirstSeen(ms: number): void {
     this.state.project_first_seen_ms = ms;
+  }
+
+  setPid(pid: number): void {
+    this.state.pid = pid;
   }
 
   private accumulateModel(event: NormalizedEvent): void {

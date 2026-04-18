@@ -1,7 +1,7 @@
 // tests/monitor/sessionRegistry.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { SessionRegistry } from "../../src/monitor/SessionRegistry";
-import { NormalizedEvent } from "../../src/types";
+import { NormalizedEvent, SessionState } from "../../src/types";
 
 // Prevent disk I/O in tests
 vi.mock("../../src/monitor/StateStore", () => ({
@@ -54,5 +54,22 @@ describe("SessionRegistry — project first-seen", () => {
     registry.route(makeEvent({ type: "session_start", tokens: { input: 0, output: 0 }, cost_usd: 0 }));
     const after = registry.getAllStates()[0].project_first_seen_ms!;
     expect(after).toBe(before);
+  });
+});
+
+describe("SessionRegistry — PID tracking", () => {
+  it("stores pid from hook event on session state", () => {
+    const registry = new SessionRegistry(cfg, () => {}, () => {});
+    registry.route(makeEvent({ pid: 9999 }));
+    const state = registry.getAllStates()[0];
+    expect(state.pid).toBe(9999);
+  });
+
+  it("does not overwrite pid with undefined if subsequent event lacks pid", () => {
+    let lastState: SessionState | undefined;
+    const registry = new SessionRegistry(cfg, (s) => { lastState = s; }, () => {});
+    registry.route(makeEvent({ pid: 9999 }));
+    registry.route(makeEvent({ pid: undefined }));
+    expect(lastState?.pid).toBe(9999);
   });
 });
