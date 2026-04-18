@@ -210,6 +210,7 @@ function buildTile(sessionId) {
       </div>
       <div class="progress-track"><div class="progress-fill" data-field="bar" style="width:0%"></div></div>
     </div>
+    <div class="model-breakdown" data-field="model-breakdown"></div>
     <div class="chart-wrap">
       <div class="chart-label" data-field="chart-label">TOOL CALLS — LIVE</div>
       <canvas class="tile-chart" data-field="chart"></canvas>
@@ -334,6 +335,25 @@ function updateTile(tile, s) {
   if (s.started_at) tile.dataset.startedAt = s.started_at;
   if (s.project_first_seen_ms) tile.dataset.projectFirstSeen = s.project_first_seen_ms;
 
+  // Model breakdown
+  const mbEl = tile.querySelector("[data-field='model-breakdown']");
+  if (mbEl && s.models && Object.keys(s.models).length > 0) {
+    mbEl.innerHTML = Object.entries(s.models).map(([id, stats]) => `
+      <div class="model-row">
+        <span class="model-name">
+          <span class="model-badge ${modelBadgeClass(id)}">${shortModelName(id)}</span>
+          ${id === s.model_last ? ' <span style="color:#00ff88;font-size:8px">&#9679; ACTIVE</span>' : ''}
+        </span>
+        <span class="model-tokens-in">IN ${fmtInt(stats.tokens_in)}</span>
+        <span class="model-tokens-out">OUT ${fmtInt(stats.tokens_out)}</span>
+        <span class="model-cost">${fmtCost4(stats.cost_usd)}</span>
+      </div>
+    `).join("");
+    mbEl.style.display = "";
+  } else if (mbEl) {
+    mbEl.style.display = "none";
+  }
+
   // Usage warning banner
   const banner = tile.querySelector('.tile-warn-banner');
   if (banner) {
@@ -391,6 +411,19 @@ function fmtElapsed(ms) {
   if (h < 24) return h + 'h ' + rm + 'm';
   const d = Math.floor(h / 24), rh = h % 24;
   return d + 'd ' + rh + 'h';
+}
+
+function modelBadgeClass(modelId) {
+  if (modelId.includes("opus"))   return "model-badge-opus";
+  if (modelId.includes("haiku"))  return "model-badge-haiku";
+  return "model-badge-sonnet";
+}
+
+function shortModelName(modelId) {
+  if (modelId.includes("opus"))   return "OPUS";
+  if (modelId.includes("haiku"))  return "HAIKU";
+  if (modelId.includes("sonnet")) return "SONNET";
+  return modelId.replace("claude-", "").toUpperCase().slice(0, 12);
 }
 
 // ── Topbar ───────────────────────────────────────────────
