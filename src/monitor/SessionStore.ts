@@ -81,6 +81,7 @@ export class SessionStore extends EventEmitter {
     }
 
     if (event.type === "token_delta") {
+      this.state.is_stale = false;
       const bootstrapTurns = event.metadata.bootstrapTurns as number | undefined;
       const toolsDelta = (event.metadata.toolsDelta as number | undefined) ?? 0;
 

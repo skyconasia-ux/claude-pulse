@@ -5,8 +5,8 @@ import { makeLogger } from "../server/logger";
 
 const log = makeLogger("SessionRegistry");
 
-const STALE_WARN_MS = 60_000;
-const STALE_CLOSE_MS = 300_000;
+const STALE_WARN_MS = 120_000;
+const STALE_CLOSE_MS = 600_000;
 
 export class SessionRegistry {
   private sessions = new Map<string, SessionStore>();
@@ -23,8 +23,18 @@ export class SessionRegistry {
   }
 
   private loadPersisted(): void {
+    const now = Date.now();
     for (const state of loadPersistedSessions()) {
-      const store = new SessionStore(this.cfg, state.session_id, state.project_name, state);
+      // Reset last_seen_ms so persisted sessions get a full grace period before stale check fires.
+      // Also drop any active lifecycle to "waiting" — we don't know if Claude is still running.
+      const activeLifecycles: Array<typeof state.lifecycle> = ["running", "tool_use", "thinking"];
+      const restoredState: SessionState = {
+        ...state,
+        last_seen_ms: now,
+        lifecycle: activeLifecycles.includes(state.lifecycle) ? "waiting" : state.lifecycle,
+        is_stale: false,
+      };
+      const store = new SessionStore(this.cfg, state.session_id, state.project_name, restoredState);
       store.on("state_updated", (s: SessionState) => { this.onUpdate(s); this.scheduleSave(); });
       store.on("checkpoint_suggested", (s: SessionState) => this.onCheckpoint("suggested", s));
       store.on("checkpoint_mandatory", (s: SessionState) => this.onCheckpoint("mandatory", s));
