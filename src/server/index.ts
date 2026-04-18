@@ -14,6 +14,7 @@ import { createOtelRouter } from "../wrapper/OtelAdapter";
 import { JournalWatcher } from "../wrapper/JournalWatcher";
 import { makeLogger } from "./logger";
 import { AccountInfo } from "../types";
+import { mergeHistory, ReportSession, ClauditorSession } from "./historyMerge";
 
 function readAccountInfo(): AccountInfo | undefined {
   try {
@@ -136,6 +137,37 @@ broadcaster.onSessionUpdate((state) => {
     pendingCheckpoints.delete(state.session_id);
     log.info("checkpoint draining queued", { session_id: state.session_id });
     runGitCheckpoint(state.project_path, state.session_id);
+  }
+});
+
+// ── History endpoint ─────────────────────────────────────
+let historyCache: { data: unknown; expires: number } | null = null;
+
+function execJson<T>(cmd: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    exec(cmd, { maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+      if (err) return reject(err);
+      try { resolve(JSON.parse(stdout) as T); }
+      catch (e) { reject(e); }
+    });
+  });
+}
+
+app.get("/api/history", async (_req: Request, res: Response) => {
+  if (historyCache && Date.now() < historyCache.expires) {
+    return res.json(historyCache.data);
+  }
+  try {
+    const [report, sessions] = await Promise.all([
+      execJson<{ sessions: ReportSession[] }>("clauditor report --json").then(r => r.sessions ?? []),
+      execJson<ClauditorSession[]>("clauditor sessions --json"),
+    ]);
+    const data = mergeHistory(report, sessions);
+    historyCache = { data, expires: Date.now() + 10_000 };
+    res.json(data);
+  } catch (err) {
+    log.warn("history fetch failed", { message: (err as Error).message });
+    res.status(500).json({ error: "clauditor unavailable" });
   }
 });
 
