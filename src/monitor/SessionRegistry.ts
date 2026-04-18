@@ -10,6 +10,7 @@ const STALE_CLOSE_MS = 600_000;
 
 export class SessionRegistry {
   private sessions = new Map<string, SessionStore>();
+  private projectFirstSeen = new Map<string, number>();
   private staleTimer: ReturnType<typeof setInterval>;
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -24,15 +25,23 @@ export class SessionRegistry {
 
   private loadPersisted(): void {
     const now = Date.now();
-    const { sessions } = loadPersistedData();
+    const { sessions, projectFirstSeen } = loadPersistedData();
+    // Load project first-seen map from persisted top-level key
+    for (const [k, v] of Object.entries(projectFirstSeen)) {
+      this.projectFirstSeen.set(k, v);
+    }
     for (const state of sessions) {
+      // Also seed from session state for backward compat
+      if (state.project_first_seen_ms && !this.projectFirstSeen.has(state.project_name)) {
+        this.projectFirstSeen.set(state.project_name, state.project_first_seen_ms);
+      }
       // Reset last_seen_ms so persisted sessions get a full grace period before stale check fires.
       // Also drop any active lifecycle to "waiting" — we don't know if Claude is still running.
       const activeLifecycles: Array<typeof state.lifecycle> = ["running", "tool_use", "thinking"];
       const restoredState: SessionState = {
         ...state,
         last_seen_ms: now,
-        lifecycle: activeLifecycles.includes(state.lifecycle) ? "waiting" : state.lifecycle,
+        lifecycle: activeLifecycles.includes(state.lifecycle) ? "waiting" as const : state.lifecycle,
         is_stale: false,
       };
       const store = new SessionStore(this.cfg, state.session_id, state.project_name, restoredState);
@@ -48,7 +57,7 @@ export class SessionRegistry {
     if (this.saveTimer) return;
     this.saveTimer = setTimeout(() => {
       this.saveTimer = null;
-      persistSessions(this.getAllStates(), {});
+      persistSessions(this.getAllStates(), Object.fromEntries(this.projectFirstSeen));
     }, 3_000);
   }
 
@@ -58,7 +67,12 @@ export class SessionRegistry {
 
     if (!this.sessions.has(id)) {
       log.info("new session registered", { session_id: id, project_name: name });
+      if (!this.projectFirstSeen.has(name)) {
+        this.projectFirstSeen.set(name, Date.now());
+        this.scheduleSave();
+      }
       const store = new SessionStore(this.cfg, id, name);
+      store.setProjectFirstSeen(this.projectFirstSeen.get(name)!);
       store.on("state_updated", (s: SessionState) => { this.onUpdate(s); this.scheduleSave(); });
       store.on("checkpoint_suggested", (s: SessionState) => this.onCheckpoint("suggested", s));
       store.on("checkpoint_mandatory", (s: SessionState) => this.onCheckpoint("mandatory", s));
@@ -84,7 +98,7 @@ export class SessionRegistry {
   destroy(): void {
     clearInterval(this.staleTimer);
     if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = null; }
-    persistSessions(this.getAllStates(), {});
+    persistSessions(this.getAllStates(), Object.fromEntries(this.projectFirstSeen));
     log.info("sessions persisted on shutdown");
   }
 

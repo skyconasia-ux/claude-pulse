@@ -76,8 +76,10 @@ export class SessionStore extends EventEmitter {
 
     if (event.type === "session_start") {
       const savedPath = this.state.project_path;
+      const savedFirstSeen = this.state.project_first_seen_ms;
       this.state = makeEmptyState(this.state.session_id, this.state.project_name);
       if (savedPath) this.state.project_path = savedPath;
+      if (savedFirstSeen) this.state.project_first_seen_ms = savedFirstSeen;
       this.recentTokenDeltas = [];
       this.checkpointSuggestedFiredForTurn = -1;
       this.checkpointMandatoryFiredForTurn = -1;
@@ -184,6 +186,10 @@ export class SessionStore extends EventEmitter {
   setStale(stale: boolean): void {
     this.state.is_stale = stale;
     if (stale) this.state.lifecycle = "closed";
+  }
+
+  setProjectFirstSeen(ms: number): void {
+    this.state.project_first_seen_ms = ms;
   }
 
   private updatePredictions(): void {
