@@ -1,6 +1,6 @@
 import { NormalizedEvent, SessionState, AppConfig } from "../types";
 import { SessionStore } from "./SessionStore";
-import { loadPersistedSessions, persistSessions } from "./StateStore";
+import { loadPersistedData, persistSessions } from "./StateStore";
 import { makeLogger } from "../server/logger";
 
 const log = makeLogger("SessionRegistry");
@@ -24,7 +24,8 @@ export class SessionRegistry {
 
   private loadPersisted(): void {
     const now = Date.now();
-    for (const state of loadPersistedSessions()) {
+    const { sessions } = loadPersistedData();
+    for (const state of sessions) {
       // Reset last_seen_ms so persisted sessions get a full grace period before stale check fires.
       // Also drop any active lifecycle to "waiting" — we don't know if Claude is still running.
       const activeLifecycles: Array<typeof state.lifecycle> = ["running", "tool_use", "thinking"];
@@ -47,7 +48,7 @@ export class SessionRegistry {
     if (this.saveTimer) return;
     this.saveTimer = setTimeout(() => {
       this.saveTimer = null;
-      persistSessions(this.getAllStates());
+      persistSessions(this.getAllStates(), {});
     }, 3_000);
   }
 
@@ -83,7 +84,7 @@ export class SessionRegistry {
   destroy(): void {
     clearInterval(this.staleTimer);
     if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = null; }
-    persistSessions(this.getAllStates());
+    persistSessions(this.getAllStates(), {});
     log.info("sessions persisted on shutdown");
   }
 

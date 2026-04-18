@@ -34,6 +34,9 @@ export interface SessionState {
   eta_to_threshold_sec: number;
   alert_level: "green" | "yellow" | "red";
   last_checkpoint_turn: number;
+  last_notification?: string;
+  notification_level?: "warn" | "critical";
+  project_first_seen_ms?: number;
 }
 
 export interface AccountInfo {
