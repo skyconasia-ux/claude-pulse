@@ -1,5 +1,5 @@
 const WS_URL = `ws://${location.host}`;
-const THRESHOLD = 100000;
+const THRESHOLD = 1000000;
 
 let ws;
 let sessions = {};        // keyed by session_id
@@ -12,7 +12,7 @@ let pendingAbortId = null;
 // ── Refresh rate ─────────────────────────────────────────
 let refreshMode = "high";   // high | normal | low | paused
 // Task Manager parity: High=1s, Normal=2s, Low=10s
-const REFRESH_INTERVALS = { high: 1000, normal: 2000, low: 10000, paused: null };
+const REFRESH_INTERVALS = { high: 1000, normal: 3000, low: 5000, paused: null };
 let refreshTimer = null;
 let pendingRender = false;
 

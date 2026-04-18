@@ -90,7 +90,7 @@ function pickMostActive(sessions: SessionState[]): SessionState | null {
 }
 
 function update(state: SessionState) {
-  const threshold = 100000;
+  const threshold = 1000000;
   const left = Math.max(threshold - state.tokens_total, 0);
   const pct = ((state.tokens_total / threshold) * 100).toFixed(1);
 

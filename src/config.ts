@@ -7,7 +7,7 @@ const raw = JSON.parse(
 );
 
 export const config: AppConfig = {
-  token_threshold: raw.token_threshold ?? 100000,
+  token_threshold: raw.token_threshold ?? 1000000,
   turn_threshold: raw.turn_threshold ?? 20,
   refresh_active_ms: raw.refresh_active_ms ?? 1000,
   refresh_idle_ms: raw.refresh_idle_ms ?? 5000,
