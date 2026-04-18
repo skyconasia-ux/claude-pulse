@@ -38,9 +38,9 @@ export interface SessionState {
   last_notification?: string;
   notification_level?: "warn" | "critical";
   project_first_seen_ms?: number;
-  model_last?: string;
-  models?: Record<string, { tokens_in: number; tokens_out: number; cost_usd: number }>;
-  weighted_tokens_total?: number;
+  model_last?: string;                  // set by SessionStore.accumulateModel
+  models?: Record<string, { tokens_in: number; tokens_out: number; cost_usd: number }>; // set by SessionStore.accumulateModel
+  weighted_tokens_total?: number;       // Sonnet-equivalent budget units, set by SessionStore.accumulateModel
 }
 
 export interface AccountInfo {

@@ -12,7 +12,9 @@ const DEFAULT_RATE = { input: 0.000003, output: 0.000015 };
 
 function getRates(model?: string): { input: number; output: number } {
   if (!model) return DEFAULT_RATE;
-  const key = Object.keys(MODEL_RATES).find(k => model.startsWith(k));
+  const key = Object.keys(MODEL_RATES)
+    .sort((a, b) => b.length - a.length)
+    .find(k => model.startsWith(k));
   return key ? MODEL_RATES[key] : DEFAULT_RATE;
 }
 
@@ -32,7 +34,6 @@ type HookEventName = "PostToolUse" | "Stop" | "Notification" | string;
 function hookEventToType(name: HookEventName): NormalizedEvent["type"] {
   if (name === "PostToolUse") return "tool_use";
   if (name === "Stop") return "turn_end";
-  if (name === "Notification") return "notification";
   return "notification";
 }
 
