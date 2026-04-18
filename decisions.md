@@ -169,3 +169,37 @@ Data source: merge `clauditor report --json` (waste, tokens, cache) + `clauditor
 No new UI. History panel inherits the current refresh mode:
 High=15s · Normal=30s · Low=60s · Paused=no refresh
 Paused still allows manual refresh via the existing "↺ Now" button.
+
+---
+
+## Q15: Tile enhancements layout — time row + warning banner placement?
+**Options:**
+- A. Dedicated time row below header + blinking warning banner above footer
+- B. Elapsed time sub-text under session ID + left-border strip at bottom
+- C. Extra stat cells in 7-column grid + warning replaces alert pill
+
+**Decision: A — Dedicated time row + warning banner**
+Elapsed time (session age + project age) gets its own slim row immediately below the tile header — always visible. Usage-limit warnings from Claude Code Notification hooks appear as a blinking amber/red banner above the tile footer, only when triggered.
+
+---
+
+## Q16: Project age definition — what clock does the tile show?
+**Options:**
+- A. Session elapsed only — one timer for current Claude Code window
+- B. First-ever session for this project — persisted across restarts
+- C. Oldest JSONL file on disk
+
+**Decision: B — First-ever session (persisted)**
+"Project age" = how long ago Claude Pulse first saw any activity for this project directory. Stored as `project_first_seen_ms` in persistent session state. Even if current session started today, the tile can show "5d 3h" if the project was first tracked 5 days ago.
+
+---
+
+## Q17: Usage warning persistence — how long does the banner stay in the tile?
+**Options:**
+- A. Auto-clear on next hook event
+- B. Sticky until session ends or new session starts
+- C. Fixed timeout (e.g. 5 min)
+
+**Decision: B — Sticky until new session**
+Warning stays visible for the lifetime of the session once triggered. High-signal info shouldn't auto-dismiss just because Claude is busy.
+Percentage shown must match exactly what Claude Code's CLI reported — taken verbatim from the Notification hook `message` field, not computed from our own token counts.
