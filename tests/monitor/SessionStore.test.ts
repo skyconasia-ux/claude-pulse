@@ -190,3 +190,56 @@ describe("SessionStore — notification events", () => {
     expect(store.getState().notification_level).toBeUndefined();
   });
 });
+
+describe("SessionStore — model-aware tracking", () => {
+  let store: SessionStore;
+  beforeEach(() => { store = new SessionStore(cfg); });
+
+  it("accumulates models map on tool_use with model field", () => {
+    store.apply(makeEvent({
+      type: "tool_use", model: "claude-sonnet-4-6",
+      tokens: { input: 100, output: 50 }, cost_usd: 0.00045,
+    }));
+    const s = store.getState();
+    expect(s.models?.["claude-sonnet-4-6"]?.tokens_in).toBe(100);
+    expect(s.models?.["claude-sonnet-4-6"]?.tokens_out).toBe(50);
+    expect(s.model_last).toBe("claude-sonnet-4-6");
+  });
+
+  it("sets weighted_tokens_total = tokens for Sonnet (weight 1)", () => {
+    store.apply(makeEvent({
+      type: "tool_use", model: "claude-sonnet-4-6",
+      tokens: { input: 200, output: 100 }, cost_usd: 0,
+    }));
+    const s = store.getState();
+    expect(s.weighted_tokens_total).toBeCloseTo(300, 1);
+  });
+
+  it("sets weighted_tokens_total ≈ 5× tokens for Opus", () => {
+    store.apply(makeEvent({
+      type: "tool_use", model: "claude-opus-4-7",
+      tokens: { input: 200, output: 100 }, cost_usd: 0,
+    }));
+    const s = store.getState();
+    expect(s.weighted_tokens_total).toBeCloseTo(300 * 5, 1);
+  });
+
+  it("sets weighted_tokens_total ≈ 0.08× tokens for Haiku", () => {
+    store.apply(makeEvent({
+      type: "tool_use", model: "claude-haiku-4-5-20251001",
+      tokens: { input: 200, output: 100 }, cost_usd: 0,
+    }));
+    const s = store.getState();
+    expect(s.weighted_tokens_total).toBeCloseTo(300 * 0.08, 3);
+  });
+
+  it("alert_level uses weighted_tokens_total when available", () => {
+    // cfg.token_threshold = 1000
+    // 150 raw Opus tokens × 5 = 750 weighted → 75% of 1000 → yellow
+    store.apply(makeEvent({
+      type: "tool_use", model: "claude-opus-4-7",
+      tokens: { input: 100, output: 50 }, cost_usd: 0,
+    }));
+    expect(store.getState().alert_level).toBe("yellow");
+  });
+});

@@ -13,6 +13,19 @@ function parseNotificationPct(msg: string): number {
   return m ? parseInt(m[1], 10) : 70;
 }
 
+const MODEL_WEIGHT: Record<string, number> = {
+  "claude-opus":   5,
+  "claude-sonnet": 1,
+  "claude-haiku":  0.08,
+};
+
+function modelWeight(model?: string): number {
+  if (!model) return 1;
+  if (model.includes("opus"))   return MODEL_WEIGHT["claude-opus"];
+  if (model.includes("haiku"))  return MODEL_WEIGHT["claude-haiku"];
+  return MODEL_WEIGHT["claude-sonnet"];
+}
+
 function makeEmptyState(sessionId: string, projectName: string): SessionState {
   return {
     session_id: sessionId,
@@ -33,6 +46,8 @@ function makeEmptyState(sessionId: string, projectName: string): SessionState {
     eta_to_threshold_sec: Infinity,
     alert_level: "green",
     last_checkpoint_turn: 0,
+    models: {},
+    weighted_tokens_total: 0,
   };
 }
 
@@ -111,6 +126,7 @@ export class SessionStore extends EventEmitter {
         this.state.last_seen_ms = event.timestamp_ms;
         this.state.turns += 1;
         this.state.tool_calls_total += toolsDelta;
+        this.accumulateModel(event);
       }
 
       const totalDelta = event.tokens.input + event.tokens.output;
@@ -164,6 +180,7 @@ export class SessionStore extends EventEmitter {
     if (event.type === "tool_use") {
       this.state.tool_calls_total += 1;
     }
+    this.accumulateModel(event);
 
     this.lastEventTs = event.timestamp_ms;
 
@@ -192,6 +209,22 @@ export class SessionStore extends EventEmitter {
     this.state.project_first_seen_ms = ms;
   }
 
+  private accumulateModel(event: NormalizedEvent): void {
+    const m = event.model ?? "unknown";
+    if (!this.state.models) this.state.models = {};
+    if (!this.state.models[m]) {
+      this.state.models[m] = { tokens_in: 0, tokens_out: 0, cost_usd: 0 };
+    }
+    this.state.models[m].tokens_in  += event.tokens.input;
+    this.state.models[m].tokens_out += event.tokens.output;
+    this.state.models[m].cost_usd   += event.cost_usd;
+    this.state.model_last = m;
+    const w = modelWeight(event.model);
+    this.state.weighted_tokens_total =
+      (this.state.weighted_tokens_total ?? 0) +
+      (event.tokens.input + event.tokens.output) * w;
+  }
+
   private updatePredictions(): void {
     const deltas = this.recentTokenDeltas;
     if (deltas.length >= 2) {
@@ -201,13 +234,15 @@ export class SessionStore extends EventEmitter {
     }
     this.state.tokens_per_turn_avg = this.state.turns > 0
       ? this.state.tokens_total / this.state.turns : 0;
-    const remaining = this.cfg.token_threshold - this.state.tokens_total;
+    const effective = this.state.weighted_tokens_total ?? this.state.tokens_total;
+    const remaining = this.cfg.token_threshold - effective;
     this.state.eta_to_threshold_sec = this.state.burn_rate_per_sec > 0
       ? remaining / this.state.burn_rate_per_sec : Infinity;
   }
 
   private updateAlertLevel(): void {
-    const pct = this.state.tokens_total / this.cfg.token_threshold;
+    const effective = this.state.weighted_tokens_total ?? this.state.tokens_total;
+    const pct = effective / this.cfg.token_threshold;
     if (pct >= 0.9) this.state.alert_level = "red";
     else if (pct >= 0.7) this.state.alert_level = "yellow";
     else this.state.alert_level = "green";
@@ -218,7 +253,8 @@ export class SessionStore extends EventEmitter {
     const lastSuggestedTurn = this.checkpointSuggestedFiredForTurn;
     const cooldownOk = lastSuggestedTurn === -1 ||
       turns - lastSuggestedTurn >= CHECKPOINT_COOLDOWN_TURNS;
-    const tokenPct = tokens_total / this.cfg.token_threshold;
+    const effective = this.state.weighted_tokens_total ?? tokens_total;
+    const tokenPct = effective / this.cfg.token_threshold;
 
     if (
       (tokenPct >= 0.9 || turns >= this.cfg.turn_threshold) &&
