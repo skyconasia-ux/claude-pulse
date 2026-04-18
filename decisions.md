@@ -130,7 +130,42 @@ User added `EventNormalizer` (normalizes raw hook/OTEL events into a common sche
 
 ---
 
-## Open questions (not yet decided)
-- Should session data persist to disk between restarts, or memory-only?
-- Should the browser dashboard support multiple concurrent sessions / history?
-- Port numbers — configurable via config.json or hardcoded defaults?
+---
+
+## Q11: Bottom panel layout — collapsible vs fixed vs draggable?
+**Options:**
+- A. Fixed Split 60/40 — always visible, no interaction
+- B. Collapsible Panel — hidden by default, toggle button in topbar
+- C. Draggable Divider — resizable split, position saved in localStorage
+
+**Decision: B — Collapsible Panel**
+History panel hidden by default so live tiles get full viewport. A "▲ HISTORY" toggle button in the topbar opens/collapses it. Keeps the dashboard clean for users who don't need historical view constantly.
+
+---
+
+## Q12: History table row style — grouped vs compact vs flat?
+**Options:**
+- A. Compact table sorted by waste factor, color-coded rows
+- B. Grouped by project, expandable sessions
+- C. Flat chronological newest-first with mini waste bar
+
+**Decision: C — Flat chronological**
+Newest sessions at top. Mini waste bar per row. User also requested: show token count per row, color-code turns by severity (low/normal/high/critical).
+
+---
+
+## Q13: History table row design — columns and turn color thresholds?
+**Decision: Approved (C-v2 mockup)**
+Columns: PROJECT · BRANCH, DATE, TURNS (color-coded), WASTE (color-coded), TOKENS, CACHE%, COST
+Turn thresholds: `<20` dim · `20–49` amber · `50–99` orange · `100+` red
+Waste bar: gradient green→red scaled to wasteFactor, shown below project name
+Summary footer: session count, total tokens, total cost, waste warning counts
+Data source: merge `clauditor report --json` (waste, tokens, cache) + `clauditor sessions --json` (cost, model) — matched by label+turns
+
+---
+
+## Q14: History panel refresh rate — separate control or tied to topbar buttons?
+**Decision: Tied to existing topbar refresh rate buttons**
+No new UI. History panel inherits the current refresh mode:
+High=15s · Normal=30s · Low=60s · Paused=no refresh
+Paused still allows manual refresh via the existing "↺ Now" button.
