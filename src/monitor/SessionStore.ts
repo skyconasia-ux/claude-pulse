@@ -47,7 +47,6 @@ function makeEmptyState(sessionId: string, projectName: string): SessionState {
     alert_level: "green",
     last_checkpoint_turn: 0,
     models: {},
-    weighted_tokens_total: 0,
   };
 }
 

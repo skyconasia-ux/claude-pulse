@@ -242,4 +242,19 @@ describe("SessionStore — model-aware tracking", () => {
     }));
     expect(store.getState().alert_level).toBe("yellow");
   });
+
+  it("falls back to tokens_total for alert when no model events have fired", () => {
+    // Apply a token_delta (journal bootstrap style, no model) that brings
+    // tokens_total to 750 — above 70% of cfg.token_threshold (1000) → yellow
+    // weighted_tokens_total must be undefined so the ?? fallback fires
+    store.apply(makeEvent({
+      type: "token_delta",
+      source: "journal",
+      tokens: { input: 400, output: 350 },
+      cost_usd: 0,
+      metadata: { bootstrapTurns: 5 },
+    }));
+    expect(store.getState().weighted_tokens_total).toBeUndefined();
+    expect(store.getState().alert_level).toBe("yellow");
+  });
 });
