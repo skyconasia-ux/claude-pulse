@@ -44,31 +44,29 @@
 ### 2026-04-18 — Clauditor Panel + Checkpoint Button
 - Collapsible history panel, `/api/history` endpoint, 7-day sessions table with waste/cost/turns, localStorage persistence
 
+### 2026-04-18 — Clauditor History Panel
+- Collapsible `▲ HISTORY` panel; `GET /api/history`; flat table with waste bar; refresh tied to topbar mode; localStorage persistence; 34/34 tests
+
+### 2026-04-18 — Tile Enhancements: Elapsed Time + Usage Warnings
+- Session + project elapsed time row per tile; `project_first_seen_ms` persisted (backward-compat migration); usage-limit warning banner (amber ≥70%, red ≥90%); 41/41 tests
+
 ---
 
 ## CURRENT CHECKPOINT
 
-### 2026-04-18 — Clauditor History Panel
+### 2026-04-18 — Model-Aware Token Tracking (plan written, not yet executed)
+
+**Objective:** Per-model token breakdown, weighted Sonnet-equivalent budget bar, correct cost rates per model.
 
 **Completed:**
-- Collapsible `▲ HISTORY` panel below live tiles (hidden by default, toggle in topbar)
-- `GET /api/history` endpoint: merges `clauditor report --json` + `clauditor sessions --json`, 10s cache, stderr captured in error logs
-- Flat chronological table: project, date, turns (colour-coded), waste (colour-coded), tokens, cache%, cost
-- Waste bar per row (gradient green→red, scaled to wasteFactor/7)
-- Refresh tied to topbar mode: High=15s, Normal=45s, Low=90s, Paused=off; ↺ Now triggers immediate refresh
-- localStorage persistence for open/closed state
-- 34/34 tests passing
+- All tile enhancements shipped (elapsed time, usage banner, first-seen tracking) — 41/41 tests
+- Implementation plan written: `docs/superpowers/plans/2026-04-18-model-aware-token-tracking.md`
 
-**Next step:** PID tracking → real process kill on Abort
+**Current progress:** Plan ready, not yet implemented.
 
----
+**Next step:** Execute model-aware token tracking plan (6 tasks).
 
-### 2026-04-18 — Tile Enhancements: Elapsed Time + Usage Warnings
-
-**Completed:**
-- Session elapsed time + project age (first-ever session for project) displayed in each tile time row
-- `project_first_seen_ms` persisted in `data/sessions.json` alongside sessions; backward-compatible migration from bare-array format
-- Usage-limit warning banner per tile: extracts message from Claude Code Notification hook, amber (≥70%) or red (≥90%), sticky until session ends
-- 41/41 tests passing
-
-**Next step:** Spec B — PID tracking + real process kill on Abort, cache-tier cost rates, terminal multi-session layout
+**Pending:**
+- Model-aware token tracking (Tasks 1–6 in plan)
+- PID tracking → real process kill on Abort
+- Terminal multi-session layout
