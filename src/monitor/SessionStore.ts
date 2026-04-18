@@ -210,7 +210,7 @@ export class SessionStore extends EventEmitter {
     this.state.project_first_seen_ms = ms;
   }
 
-  setPid(pid: number): void {
+  private setPid(pid: number): void {
     this.state.pid = pid;
   }
 
