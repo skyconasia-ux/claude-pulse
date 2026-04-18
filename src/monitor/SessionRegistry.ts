@@ -89,6 +89,19 @@ export class SessionRegistry {
   markStopped(sessionId: string): boolean {
     const store = this.sessions.get(sessionId);
     if (!store) return false;
+    const state = store.getState();
+    if (state.pid !== undefined) {
+      try {
+        process.kill(state.pid);
+        log.warn("kill signal sent to Claude process", { session_id: sessionId, pid: state.pid });
+      } catch (err) {
+        log.warn("kill failed (process may have already exited)", {
+          session_id: sessionId,
+          pid: state.pid,
+          message: (err as Error).message,
+        });
+      }
+    }
     store.setLifecycle("stopped");
     log.warn("session marked stopped", { session_id: sessionId });
     this.onUpdate(store.getState() as SessionState);

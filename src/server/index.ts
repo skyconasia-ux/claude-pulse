@@ -90,10 +90,12 @@ process.on("SIGTERM", shutdown);
 
 app.post("/abort/:sessionId", (req: Request, res: Response) => {
   const sessionId = req.params["sessionId"] as string;
+  const states = registry.getAllStates();
+  const before = states.find(s => s.session_id === sessionId);
   const ok = registry.markStopped(sessionId);
   if (ok) {
-    log.warn("abort requested", { session_id: sessionId });
-    res.json({ ok: true });
+    log.warn("abort requested", { session_id: sessionId, had_pid: before?.pid != null });
+    res.json({ ok: true, killed: before?.pid != null });
   } else {
     res.status(404).json({ error: "session not found" });
   }

@@ -72,4 +72,30 @@ describe("SessionRegistry — PID tracking", () => {
     registry.route(makeEvent({ pid: undefined }));
     expect(lastState?.pid).toBe(9999);
   });
+
+  it("attempts to kill process when markStopped is called with a known pid", () => {
+    const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+    const registry = new SessionRegistry(cfg, () => {}, () => {});
+    registry.route(makeEvent({ pid: 5555 }));
+    registry.markStopped("sess-abc");
+    expect(killSpy).toHaveBeenCalledWith(5555);
+    killSpy.mockRestore();
+  });
+
+  it("does not throw when markStopped is called and kill fails", () => {
+    const killSpy = vi.spyOn(process, "kill").mockImplementation(() => { throw new Error("EPERM"); });
+    const registry = new SessionRegistry(cfg, () => {}, () => {});
+    registry.route(makeEvent({ pid: 7777 }));
+    expect(() => registry.markStopped("sess-abc")).not.toThrow();
+    killSpy.mockRestore();
+  });
+
+  it("does not call kill when session has no pid", () => {
+    const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+    const registry = new SessionRegistry(cfg, () => {}, () => {});
+    registry.route(makeEvent());  // no pid
+    registry.markStopped("sess-abc");
+    expect(killSpy).not.toHaveBeenCalled();
+    killSpy.mockRestore();
+  });
 });
