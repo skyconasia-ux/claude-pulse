@@ -60,22 +60,22 @@
 
 ## CURRENT CHECKPOINT
 
-### 2026-04-18 — Model-Aware Token Tracking (COMPLETE)
+### 2026-04-18 — PID Tracking + Terminal Multi-Session (plans written, execution starting)
 
-**Objective:** Per-model token breakdown, weighted Sonnet-equivalent budget bar, correct cost rates per model.
+**Objective 1:** Real process kill on Abort — inject parent PID via PowerShell hook, store on SessionState, kill via `process.kill(pid)` in `markStopped`.
+
+**Objective 2:** Terminal multi-session layout — session list table (keyboard-navigable) + detail pane for selected session, helpers unit-tested.
 
 **Completed:**
-- Model rates in EventNormalizer: Opus $15/$75, Sonnet $3/$15, Haiku $0.25/$1.25 per MTok; longest-prefix matching
-- `NormalizedEvent.model` field added; extracted from hook payload + OTel span attributes
-- `SessionStore.accumulateModel()`: per-model map, `model_last`, `weighted_tokens_total` (undefined at init)
-- Weighted progress bar + "BUDGET LEFT" label; per-model breakdown in each tile
-- All alert/ETA/checkpoint logic uses `weighted_tokens_total ?? tokens_total`
-- 51/51 tests; verified end-to-end via WebSocket (weighted=750K from 400K Sonnet+70K Opus, alert=yellow@75%)
+- Plans written: `docs/superpowers/plans/2026-04-18-pid-tracking-abort.md` (5 tasks)
+- Plans written: `docs/superpowers/plans/2026-04-18-terminal-multi-session.md` (3 tasks)
+- Web dashboard redesign pending (user instructions forthcoming)
 
-**Current progress:** Fully implemented and committed.
+**Current progress:** Plans ready, execution starting now.
 
-**Next step:** PID tracking → real process kill on Abort.
+**Next step:** Execute both plans via Subagent-Driven Development.
 
 **Pending:**
-- PID tracking → real process kill on Abort
-- Terminal multi-session layout
+- PID tracking (Tasks 1–5)
+- Terminal multi-session layout (Tasks 1–3)
+- Web dashboard redesign (user instructions pending)
