@@ -141,3 +141,52 @@ describe("SessionStore — out-of-order events", () => {
     expect(store.getState().tokens_total).toBe(tokensBefore);
   });
 });
+
+describe("SessionStore — notification events", () => {
+  let store: SessionStore;
+  beforeEach(() => { store = new SessionStore(cfg); });
+
+  it("sets last_notification and warn level on 70–89% message", () => {
+    store.apply(makeEvent({
+      type: "notification",
+      tokens: { input: 0, output: 0 },
+      cost_usd: 0,
+      metadata: { message: "You have used 78% of your daily usage limit." },
+    }));
+    const s = store.getState();
+    expect(s.last_notification).toBe("You have used 78% of your daily usage limit.");
+    expect(s.notification_level).toBe("warn");
+  });
+
+  it("sets critical level on ≥90% message", () => {
+    store.apply(makeEvent({
+      type: "notification",
+      tokens: { input: 0, output: 0 },
+      cost_usd: 0,
+      metadata: { message: "You have used 92% of your usage limit." },
+    }));
+    expect(store.getState().notification_level).toBe("critical");
+  });
+
+  it("ignores notification with no limit keywords", () => {
+    store.apply(makeEvent({
+      type: "notification",
+      tokens: { input: 0, output: 0 },
+      cost_usd: 0,
+      metadata: { message: "Tool completed successfully." },
+    }));
+    expect(store.getState().last_notification).toBeUndefined();
+  });
+
+  it("clears last_notification on session_start", () => {
+    store.apply(makeEvent({
+      type: "notification",
+      tokens: { input: 0, output: 0 },
+      cost_usd: 0,
+      metadata: { message: "You have used 78% of your daily usage limit." },
+    }));
+    store.apply(makeEvent({ type: "session_start", tokens: { input: 0, output: 0 }, cost_usd: 0 }));
+    expect(store.getState().last_notification).toBeUndefined();
+    expect(store.getState().notification_level).toBeUndefined();
+  });
+});

@@ -8,6 +8,11 @@ const log = makeLogger("SessionStore");
 const SOFT_TURN = 10;
 const CHECKPOINT_COOLDOWN_TURNS = 3;
 
+function parseNotificationPct(msg: string): number {
+  const m = msg.match(/(\d+)\s*%/);
+  return m ? parseInt(m[1], 10) : 70;
+}
+
 function makeEmptyState(sessionId: string, projectName: string): SessionState {
   return {
     session_id: sessionId,
@@ -114,6 +119,19 @@ export class SessionStore extends EventEmitter {
       this.updatePredictions();
       this.updateAlertLevel();
       this.evaluateCheckpoints();
+      this.emit("state_updated", { ...this.state });
+      return;
+    }
+
+    if (event.type === "notification") {
+      const msg = String(event.metadata.message ?? "");
+      const lower = msg.toLowerCase();
+      if (lower.includes("limit") || lower.includes("usage") || lower.includes("%")) {
+        this.state.last_notification = msg;
+        const pct = parseNotificationPct(msg);
+        this.state.notification_level = pct >= 90 ? "critical" : "warn";
+      }
+      this.state.last_seen_ms = event.timestamp_ms;
       this.emit("state_updated", { ...this.state });
       return;
     }
