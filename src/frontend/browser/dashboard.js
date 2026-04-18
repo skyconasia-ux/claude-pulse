@@ -9,6 +9,12 @@ let startedAt = null;
 let elapsedTimer = null;
 let pendingAbortId = null;
 
+// ── History panel ────────────────────────────────────────
+let historyOpen = localStorage.getItem("claudepulse_history_open") === "true";
+let historyTimer = null;
+
+const HISTORY_INTERVALS = { high: 15000, normal: 45000, low: 90000, paused: null };
+
 // ── Refresh rate ─────────────────────────────────────────
 let refreshMode = "high";   // high | normal | low | paused
 // Task Manager parity: High=1s, Normal=2s, Low=10s
@@ -22,8 +28,11 @@ function setRefreshMode(mode) {
     b.classList.toggle("active", b.dataset.rate === mode);
   });
   if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+  if (historyTimer) { clearInterval(historyTimer); historyTimer = null; }
   if (mode !== "paused") {
     refreshTimer = setInterval(flushRender, REFRESH_INTERVALS[mode]);
+    const hi = HISTORY_INTERVALS[mode];
+    if (hi) historyTimer = setInterval(fetchHistory, hi);
   }
 }
 
@@ -560,14 +569,143 @@ function fmtEta(sec) {
   return `~${Math.round(sec / 60)}m`;
 }
 
+function fmtTokensM(n) {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+  if (n >= 1_000)     return (n / 1_000).toFixed(0) + "K";
+  return String(n);
+}
+
+function turnClass(turns) {
+  if (turns < 20)  return "hist-turns-low";
+  if (turns < 50)  return "hist-turns-normal";
+  if (turns < 100) return "hist-turns-high";
+  return "hist-turns-critical";
+}
+
+function wasteClass(w) {
+  if (w < 2) return "hist-waste-good";
+  if (w < 3) return "hist-waste-warn";
+  if (w < 5) return "hist-waste-high";
+  return "hist-waste-critical";
+}
+
+function fmtDate(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function parseLabel(label) {
+  // "quick/ProjectName" → { project: "ProjectName", branch: "" }
+  // "ProjectName (main)" → { project: "ProjectName", branch: "main" }
+  const slashMatch = label.match(/^[^/]+\/(.+)$/);
+  if (slashMatch) return { project: slashMatch[1], branch: "" };
+  const parenMatch = label.match(/^(.+?)\s*\((.+)\)$/);
+  if (parenMatch) return { project: parenMatch[1], branch: parenMatch[2] };
+  return { project: label, branch: "" };
+}
+
+function renderHistoryRows(rows) {
+  const container = document.getElementById("history-rows");
+  const footer    = document.getElementById("history-footer");
+  if (!container || !footer) return;
+
+  if (!rows || rows.length === 0) {
+    container.innerHTML = '<div style="padding:14px;color:#444466;font-size:10px;text-align:center">No sessions in the last 7 days</div>';
+    footer.textContent = "—";
+    return;
+  }
+
+  let totalTokens = 0, totalCost = 0, warn3x = 0, crit5x = 0;
+
+  container.innerHTML = rows.map(r => {
+    totalTokens += r.totalTokens || 0;
+    totalCost   += r.cost        || 0;
+    if (r.wasteFactor >= 5) crit5x++;
+    else if (r.wasteFactor >= 3) warn3x++;
+
+    const { project, branch } = parseLabel(r.label);
+    const barW  = Math.min((r.wasteFactor || 1) / 7, 1) * 100;
+    const tCls  = turnClass(r.turns);
+    const wCls  = wasteClass(r.wasteFactor);
+    const cache = r.cacheRatio ? Math.round(r.cacheRatio * 100) + "%" : "—";
+    const cost  = r.cost ? "$" + r.cost.toFixed(2) : "—";
+
+    return `<div class="hist-row">
+      <div class="hist-row-top">
+        <span class="hist-project">${project}${branch ? ` <span class="hist-branch">${branch}</span>` : ""}</span>
+        <span class="hist-date">${fmtDate(r.date)}</span>
+        <span class="${tCls}">${r.turns}</span>
+        <span class="${wCls}">${(r.wasteFactor || 1).toFixed(1)}x</span>
+        <span class="hist-tokens">${fmtTokensM(r.totalTokens || 0)}</span>
+        <span class="hist-cache">${cache}</span>
+        <span class="hist-cost">${cost}</span>
+      </div>
+      <div class="hist-bar-track">
+        <div class="hist-bar-fill" style="width:${barW.toFixed(1)}%"></div>
+      </div>
+    </div>`;
+  }).join("");
+
+  const parts = [
+    `${rows.length} sessions`,
+    `<span class="hist-footer-tokens">${fmtTokensM(totalTokens)}</span>`,
+    totalCost > 0 ? `<span class="hist-footer-cost">$${totalCost.toFixed(2)}</span>` : null,
+    warn3x > 0   ? `<span class="hist-footer-warn">${warn3x} ≥3x waste</span>` : null,
+    crit5x > 0   ? `<span class="hist-footer-crit">${crit5x} ≥5x waste</span>` : null,
+  ].filter(Boolean);
+  footer.innerHTML = parts.join(" · ");
+}
+
+function fetchHistory() {
+  if (!historyOpen) return;
+  fetch("/api/history")
+    .then(r => r.json())
+    .then(renderHistoryRows)
+    .catch(() => {
+      const footer = document.getElementById("history-footer");
+      if (footer) footer.textContent = "clauditor unavailable";
+    });
+}
+
+function setHistoryOpen(open) {
+  historyOpen = open;
+  localStorage.setItem("claudepulse_history_open", String(open));
+
+  const panel   = document.getElementById("history-panel");
+  const divider = document.getElementById("history-divider");
+  const btn     = document.getElementById("btn-history");
+
+  panel  ?.classList.toggle("open", open);
+  divider?.classList.toggle("open", open);
+  btn    ?.classList.toggle("active", open);
+  btn && (btn.textContent = open ? "▼ HISTORY" : "▲ HISTORY");
+
+  if (open) fetchHistory();
+}
+
 // ── Refresh rate buttons ─────────────────────────────────
 document.querySelectorAll(".rate-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     const mode = btn.dataset.rate;
-    if (mode === "refresh") { renderAll(); return; }
+    if (mode === "refresh") {
+      flushRender();
+      fetchHistory();
+      return;
+    }
     setRefreshMode(mode);
   });
 });
 setRefreshMode("high");
+
+// History toggle
+document.getElementById("btn-history")?.addEventListener("click", () => {
+  setHistoryOpen(!historyOpen);
+});
+document.getElementById("history-divider")?.addEventListener("click", () => {
+  setHistoryOpen(false);
+});
+
+// Restore persisted open state on load
+if (historyOpen) setHistoryOpen(true);
 
 connect();
