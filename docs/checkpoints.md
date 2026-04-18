@@ -41,25 +41,22 @@
 - Project renamed to Claude Pulse everywhere; session state persistence (`data/sessions.json`); chart tooltip (delta, not cumulative); plan badge per tile (PRO/MAX/FREE from credentials)
 - GitHub: `https://github.com/skyconasia-ux/claude-pulse`; release: `ClaudePulse-v1.0.0.zip`
 
+### 2026-04-18 — Clauditor Panel + Checkpoint Button
+- Collapsible history panel, `/api/history` endpoint, 7-day sessions table with waste/cost/turns, localStorage persistence
+
 ---
 
 ## CURRENT CHECKPOINT
 
-### 2026-04-18 — Clauditor Panel + Checkpoint Button
-
-**Objective:** Add bottom split panel showing clauditor 7-day session history; add Checkpoint button per tile (beside Abort) that commits+pushes current project state to GitHub.
+### 2026-04-18 — Clauditor History Panel
 
 **Completed:**
-- Explored `clauditor sessions --json` and `clauditor report --json` data shapes
-- Designed split-panel layout (top: live tiles, bottom: historical sessions table)
-- Checkpoint button spec: POST `/checkpoint/:sessionId` → git add+commit+push for that session's project dir; queues if session is actively running
+- Collapsible `▲ HISTORY` panel below live tiles (hidden by default, toggle in topbar)
+- `GET /api/history` endpoint: merges `clauditor report --json` + `clauditor sessions --json`, 10s cache, stderr captured in error logs
+- Flat chronological table: project, date, turns (colour-coded), waste (colour-coded), tokens, cache%, cost
+- Waste bar per row (gradient green→red, scaled to wasteFactor/7)
+- Refresh tied to topbar mode: High=15s, Normal=45s, Low=90s, Paused=off; ↺ Now triggers immediate refresh
+- localStorage persistence for open/closed state
+- 34/34 tests passing
 
-**Current progress:** Implementing — checkpoint docs updated, button + endpoint in progress
-
-**Next step:** Add `/checkpoint/:sessionId` endpoint to server; add button to tile HTML/JS
-
-**Pending:**
-- Clauditor bottom panel (7-day sessions table with waste/cost/turns)
-- PID tracking → real process kill on Abort
-- Terminal dashboard: multi-session layout
-- Fix cost estimate to use cache-tier rates
+**Next step:** PID tracking → real process kill on Abort
