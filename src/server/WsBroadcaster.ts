@@ -10,6 +10,7 @@ export class WsBroadcaster {
   private sessions: SessionState[] = [];
   private noClientsCallback?: () => void;
   private newClientCallback?: () => void;
+  private sessionUpdateCallback?: (state: SessionState) => void;
   private accountInfo?: AccountInfo;
 
   constructor(server: Server, accountInfo?: AccountInfo) {
@@ -41,6 +42,7 @@ export class WsBroadcaster {
 
   onNoClients(cb: () => void): void { this.noClientsCallback = cb; }
   onNewClient(cb: () => void): void { this.newClientCallback = cb; }
+  onSessionUpdate(cb: (state: SessionState) => void): void { this.sessionUpdateCallback = cb; }
 
   close(): void {
     for (const client of this.wss.clients) client.close();
@@ -55,6 +57,7 @@ export class WsBroadcaster {
 
   broadcastSessionUpdate(state: SessionState): void {
     this.setSession(state);
+    this.sessionUpdateCallback?.(state);
     const msg: WsMessage = { type: "session_updated", session: state };
     this.broadcast(msg);
   }

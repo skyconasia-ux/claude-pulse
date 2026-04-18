@@ -33,10 +33,11 @@ HooksAdapter / OtelAdapter / JournalWatcher → EventBus → SessionRegistry →
 - Abort: POST /abort/:sessionId → registry.markStopped()
 
 ## Pending
-- Distribution: Windows release package, Node.js 18+ requirement docs
+- Clauditor bottom panel: split dashboard top/bottom; bottom = 7-day sessions table via `clauditor sessions --json` + `clauditor report --json` polled every 30s
+- Checkpoint button per tile (beside Abort): POST `/checkpoint/:sessionId` → git add+commit+push for session's project dir; queues if session active
 - PID tracking → real process kill on abort
-- Session history persistence to disk
 - Terminal multi-session layout
+- Fix cost estimate to use cache-tier rates
 
 ## Key Decisions
 See decisions.md at project root for full Q&A log.

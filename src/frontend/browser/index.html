@@ -108,6 +108,24 @@
       color: var(--red); box-shadow: 0 0 10px rgba(255,68,85,0.3);
     }
 
+    .btn-checkpoint {
+      background: rgba(0,255,136,0.06); border: 1px solid rgba(0,255,136,0.25);
+      color: rgba(0,255,136,0.6); font-family: var(--font); font-size: 11px;
+      letter-spacing: 1px; padding: 5px 14px; border-radius: 4px; cursor: pointer; transition: all 0.2s;
+    }
+    .btn-checkpoint:hover {
+      background: rgba(0,255,136,0.16); border-color: var(--green);
+      color: var(--green); box-shadow: 0 0 10px rgba(0,255,136,0.25);
+    }
+    .btn-checkpoint.queued {
+      border-color: rgba(255,170,0,0.4); color: var(--amber);
+      background: rgba(255,170,0,0.07); animation: pulse 1.5s infinite;
+    }
+    .btn-checkpoint.done {
+      border-color: rgba(0,255,136,0.6); color: var(--green);
+      background: rgba(0,255,136,0.12);
+    }
+
     #empty-state { display: none; text-align: center; padding: 80px 20px; color: var(--dim); font-size: 13px; letter-spacing: 2px; }
     #empty-state .empty-icon { font-size: 40px; margin-bottom: 16px; opacity: 0.25; }
 

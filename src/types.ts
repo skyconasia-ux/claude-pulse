@@ -17,6 +17,7 @@ export interface NormalizedEvent {
 export interface SessionState {
   session_id: string;
   project_name: string;
+  project_path?: string;
   lifecycle: LifecycleState;
   last_seen_ms: number;
   is_stale: boolean;

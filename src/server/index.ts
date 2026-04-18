@@ -98,6 +98,47 @@ app.post("/abort/:sessionId", (req: Request, res: Response) => {
   }
 });
 
+// ── Checkpoint button ────────────────────────────────────
+const pendingCheckpoints = new Set<string>();
+
+function runGitCheckpoint(projectPath: string, sessionId: string): void {
+  const ts = new Date().toISOString().slice(0, 16).replace("T", " ");
+  const cmd = `git -C "${projectPath}" add -A && git -C "${projectPath}" commit -m "checkpoint: ${ts}" --allow-empty && git -C "${projectPath}" push`;
+  exec(cmd, (err, stdout, stderr) => {
+    if (err) log.warn("git checkpoint failed", { session_id: sessionId, message: err.message, stderr });
+    else log.info("git checkpoint pushed", { session_id: sessionId, stdout: stdout.trim() });
+  });
+}
+
+app.post("/checkpoint/:sessionId", (req: Request, res: Response) => {
+  const sessionId = req.params["sessionId"] as string;
+  const states = registry.getAllStates();
+  const session = states.find(s => s.session_id === sessionId);
+  if (!session) return res.status(404).json({ error: "session not found" });
+  if (!session.project_path) return res.status(400).json({ error: "project path unknown" });
+
+  const activeStates: Array<typeof session.lifecycle> = ["running", "tool_use", "thinking"];
+  if (activeStates.includes(session.lifecycle)) {
+    pendingCheckpoints.add(sessionId);
+    log.info("checkpoint queued (session active)", { session_id: sessionId });
+    return res.json({ status: "queued" });
+  }
+
+  runGitCheckpoint(session.project_path, sessionId);
+  res.json({ status: "ok" });
+});
+
+// Drain queued checkpoints when a session goes idle
+broadcaster.onSessionUpdate((state) => {
+  if (!pendingCheckpoints.has(state.session_id)) return;
+  const activeStates: Array<typeof state.lifecycle> = ["running", "tool_use", "thinking"];
+  if (!activeStates.includes(state.lifecycle) && state.project_path) {
+    pendingCheckpoints.delete(state.session_id);
+    log.info("checkpoint draining queued", { session_id: state.session_id });
+    runGitCheckpoint(state.project_path, state.session_id);
+  }
+});
+
 async function promptFrontend(): Promise<"browser" | "terminal" | "both"> {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   return new Promise(resolve => {

@@ -35,21 +35,31 @@
 
 ---
 
-## CURRENT CHECKPOINT
-
 ### 2026-04-18 — Polish + Persistence + Plan Badge
 
-**Completed since last checkpoint:**
-- **Project renamed** to Claude Pulse everywhere: package.json, all source files, docs, GitHub repo (`skyconasia-ux/claude-pulse`), release zip
-- **Session state persistence** (`data/sessions.json`): saves every 3s + on clean shutdown; loads on startup; bootstrap uses `Math.max` so token counts survive restarts without dropping
-- **Chart tooltip** on TOKEN BURN — LIVE: hover any point to see exact date/time recorded + tokens burned at that point (delta, not cumulative)
-- **Plan badge** per tile: reads `~/.claude/.credentials.json` → shows subscription type (PRO/MAX/FREE) + usage tier label. Note: billing pool switching (Pro included → $20 CC promo → extra credits) is NOT detectable from local files — Anthropic doesn't write that state anywhere locally
-- GitHub repo: `https://github.com/skyconasia-ux/claude-pulse`; release: `ClaudePulse-v1.0.0.zip`
+**Completed:**
+- Project renamed to Claude Pulse everywhere; session state persistence (`data/sessions.json`); chart tooltip (delta, not cumulative); plan badge per tile (PRO/MAX/FREE from credentials)
+- GitHub: `https://github.com/skyconasia-ux/claude-pulse`; release: `ClaudePulse-v1.0.0.zip`
 
-**Known limitation — cost display:**
-Cost shown is a *calculated estimate* at API rates ($3/M input, $15/M output flat). Actual API pricing differentiates cache reads ($0.30/M) vs cache writes ($3.75/M) vs regular input — so displayed cost is an overestimate. For Pro/promo users: this is the hypothetical API cost, not what you're actually charged (you pay a flat subscription).
+---
 
-**Next steps:**
+## CURRENT CHECKPOINT
+
+### 2026-04-18 — Clauditor Panel + Checkpoint Button
+
+**Objective:** Add bottom split panel showing clauditor 7-day session history; add Checkpoint button per tile (beside Abort) that commits+pushes current project state to GitHub.
+
+**Completed:**
+- Explored `clauditor sessions --json` and `clauditor report --json` data shapes
+- Designed split-panel layout (top: live tiles, bottom: historical sessions table)
+- Checkpoint button spec: POST `/checkpoint/:sessionId` → git add+commit+push for that session's project dir; queues if session is actively running
+
+**Current progress:** Implementing — checkpoint docs updated, button + endpoint in progress
+
+**Next step:** Add `/checkpoint/:sessionId` endpoint to server; add button to tile HTML/JS
+
+**Pending:**
+- Clauditor bottom panel (7-day sessions table with waste/cost/turns)
 - PID tracking → real process kill on Abort
 - Terminal dashboard: multi-session layout
-- Fix cost calculation to use correct cache-tier rates
+- Fix cost estimate to use cache-tier rates

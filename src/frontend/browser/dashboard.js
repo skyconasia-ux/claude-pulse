@@ -84,6 +84,22 @@ function handleMessage(msg) {
     sessions[msg.session.session_id] = msg.session;
     recordHistory(msg.session);
     pendingRender = true;
+    // If a checkpoint was queued and session is now idle, server will run it — clear queued state
+    const activeLifecycles = ["running", "tool_use", "thinking"];
+    if (!activeLifecycles.includes(msg.session.lifecycle)) {
+      const tile = document.querySelector(`.tile[data-id="${msg.session.session_id}"]`);
+      const btn = tile?.querySelector(".btn-checkpoint");
+      if (btn?.classList.contains("queued")) {
+        btn.classList.remove("queued");
+        btn.classList.add("done");
+        btn.textContent = "⬡ Pushed";
+        setTimeout(() => {
+          btn.classList.remove("done");
+          btn.textContent = "⬡ Checkpoint";
+          btn.disabled = false;
+        }, 3000);
+      }
+    }
   } else if (msg.type === "checkpoint_event") {
     sessions[msg.state.session_id] = msg.state;
     recordHistory(msg.state);
@@ -193,12 +209,42 @@ function buildTile(sessionId) {
     </div>
     <div class="tile-footer">
       <span class="alert-pill" data-field="alert">● GREEN</span>
-      <button class="btn-abort" title="Code 10 Abort" data-sid="${sessionId}">Abort</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-checkpoint" title="Checkpoint — git commit + push" data-sid="${sessionId}">⬡ Checkpoint</button>
+        <button class="btn-abort" title="Code 10 Abort" data-sid="${sessionId}">Abort</button>
+      </div>
     </div>
   `;
   tile.querySelector(".btn-abort").addEventListener("click", (e) => {
     const sid = e.currentTarget.dataset.sid;
     openAbortConfirm(sid);
+  });
+  tile.querySelector(".btn-checkpoint").addEventListener("click", (e) => {
+    const btn = e.currentTarget;
+    const sid = btn.dataset.sid;
+    btn.disabled = true;
+    btn.textContent = "…";
+    fetch(`/checkpoint/${sid}`, { method: "POST" })
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === "queued") {
+          btn.classList.add("queued");
+          btn.textContent = "⬡ Queued";
+          btn.disabled = false;
+        } else {
+          btn.classList.add("done");
+          btn.textContent = "⬡ Pushed";
+          setTimeout(() => {
+            btn.classList.remove("done");
+            btn.textContent = "⬡ Checkpoint";
+            btn.disabled = false;
+          }, 3000);
+        }
+      })
+      .catch(() => {
+        btn.textContent = "⬡ Checkpoint";
+        btn.disabled = false;
+      });
   });
   return tile;
 }

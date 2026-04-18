@@ -65,8 +65,14 @@ export class SessionStore extends EventEmitter {
       return;
     }
 
+    if (!this.state.project_path && event.metadata.cwd) {
+      this.state.project_path = String(event.metadata.cwd);
+    }
+
     if (event.type === "session_start") {
+      const savedPath = this.state.project_path;
       this.state = makeEmptyState(this.state.session_id, this.state.project_name);
+      if (savedPath) this.state.project_path = savedPath;
       this.recentTokenDeltas = [];
       this.checkpointSuggestedFiredForTurn = -1;
       this.checkpointMandatoryFiredForTurn = -1;
