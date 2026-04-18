@@ -648,7 +648,7 @@ function renderHistoryRows(rows) {
 
   const parts = [
     `${rows.length} sessions`,
-    `<span class="hist-footer-tokens">${fmtTokensM(totalTokens)}</span>`,
+    `<span class="hist-footer-tokens">${fmtTokensM(totalTokens)} tokens</span>`,
     totalCost > 0 ? `<span class="hist-footer-cost">$${totalCost.toFixed(2)}</span>` : null,
     warn3x > 0   ? `<span class="hist-footer-warn">${warn3x} ≥3x waste</span>` : null,
     crit5x > 0   ? `<span class="hist-footer-crit">${crit5x} ≥5x waste</span>` : null,
@@ -688,7 +688,7 @@ document.querySelectorAll(".rate-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     const mode = btn.dataset.rate;
     if (mode === "refresh") {
-      flushRender();
+      renderAll();
       fetchHistory();
       return;
     }
