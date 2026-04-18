@@ -186,6 +186,92 @@
       0%, 100% { opacity: 1; transform: translateX(-50%) scale(1); }
       50% { opacity: 0.55; transform: translateX(-50%) scale(0.98); }
     }
+
+    /* ── History panel ─────────────────────────────────── */
+    #history-divider {
+      display: none; align-items: center; gap: 12px;
+      margin: 16px 0 0; cursor: pointer; user-select: none;
+    }
+    #history-divider.open { display: flex; }
+    .hist-divider-line { flex: 1; height: 1px; background: rgba(255,170,0,0.2); }
+    .hist-divider-label {
+      font-size: 10px; letter-spacing: 2px; color: rgba(255,170,0,0.6);
+      padding: 2px 10px; border: 1px solid rgba(255,170,0,0.25);
+      border-radius: 3px; white-space: nowrap;
+    }
+    #history-divider:hover .hist-divider-label { color: var(--amber); border-color: rgba(255,170,0,0.5); }
+
+    #history-panel {
+      display: none; flex-direction: column;
+      max-height: 40vh; overflow-y: auto;
+      margin-top: 12px; margin-bottom: 20px;
+      border: 1px solid rgba(255,170,0,0.15); border-radius: 8px;
+      background: var(--bg2);
+    }
+    #history-panel.open { display: flex; }
+
+    .hist-header {
+      display: grid;
+      grid-template-columns: 2.5fr 1fr 0.7fr 0.7fr 0.8fr 0.7fr 0.9fr;
+      gap: 6px; padding: 6px 14px;
+      background: #070713; color: #333355;
+      font-size: 8px; letter-spacing: 1.5px;
+      border-bottom: 1px solid rgba(255,170,0,0.1);
+      position: sticky; top: 0; z-index: 1;
+    }
+
+    .hist-row { padding: 7px 14px; border-bottom: 1px solid #0d0d1f; }
+    .hist-row:last-child { border-bottom: none; }
+    .hist-row-top {
+      display: grid;
+      grid-template-columns: 2.5fr 1fr 0.7fr 0.7fr 0.8fr 0.7fr 0.9fr;
+      gap: 6px; margin-bottom: 4px; align-items: baseline;
+    }
+    .hist-project { color: var(--cyan); font-size: 10px; }
+    .hist-branch   { color: var(--dim); font-size: 9px; }
+    .hist-date     { color: var(--dim); font-size: 9px; }
+    .hist-cost     { color: var(--purple); font-size: 10px; text-align: right; }
+
+    .hist-bar-track { background: #0d0d1f; border-radius: 2px; height: 3px; margin-bottom: 4px; overflow: hidden; }
+    .hist-bar-fill  { height: 100%; border-radius: 2px;
+      background: linear-gradient(90deg, var(--green), var(--amber), var(--red));
+      transition: width 0.4s ease; }
+
+    .hist-row-bottom {
+      display: grid;
+      grid-template-columns: 2.5fr 1fr 0.7fr 0.7fr 0.8fr 0.7fr 0.9fr;
+      gap: 6px; font-size: 9px; color: var(--dim);
+    }
+    .hist-turns-low      { color: #444466; }
+    .hist-turns-normal   { color: var(--amber); }
+    .hist-turns-high     { color: #ff6622; }
+    .hist-turns-critical { color: var(--red); font-weight: bold; }
+    .hist-waste-good     { color: var(--green); }
+    .hist-waste-warn     { color: var(--amber); }
+    .hist-waste-high     { color: #ff6622; }
+    .hist-waste-critical { color: var(--red); }
+    .hist-tokens { color: var(--cyan); }
+    .hist-cache  { color: var(--green); }
+
+    .hist-footer {
+      padding: 6px 14px; background: #070713;
+      display: flex; gap: 20px; flex-wrap: wrap;
+      color: #333355; font-size: 9px; letter-spacing: 1px;
+      border-top: 1px solid rgba(255,170,0,0.1);
+      position: sticky; bottom: 0;
+    }
+    .hist-footer-tokens { color: var(--cyan); }
+    .hist-footer-cost   { color: var(--purple); }
+    .hist-footer-warn   { color: var(--amber); }
+    .hist-footer-crit   { color: var(--red); }
+
+    .btn-history {
+      background: transparent; border: 1px solid rgba(255,170,0,0.3);
+      color: rgba(255,170,0,0.7); font-family: var(--font); font-size: 10px;
+      letter-spacing: 1px; padding: 3px 9px; border-radius: 3px; cursor: pointer; transition: all 0.15s;
+    }
+    .btn-history:hover  { border-color: var(--amber); color: var(--amber); }
+    .btn-history.active { background: rgba(255,170,0,0.1); border-color: var(--amber); color: var(--amber); }
   </style>
 </head>
 <body>
@@ -200,6 +286,7 @@
         <button class="rate-btn" data-rate="paused">Paused</button>
         <button class="rate-btn refresh-btn" data-rate="refresh">↺ Now</button>
       </div>
+      <button class="btn-history" id="btn-history">▲ HISTORY</button>
       <span><span class="conn-dot" id="conn-dot"></span><span id="conn-label">Connecting...</span></span>
       <span id="session-count">0 sessions</span>
       <span id="elapsed">0s</span>
@@ -210,6 +297,21 @@
   <div id="empty-state">
     <div class="empty-icon">⬡</div>
     <div>No sessions yet — start Claude Code with hooks configured</div>
+  </div>
+
+  <div id="history-divider">
+    <div class="hist-divider-line"></div>
+    <span class="hist-divider-label">▲ HISTORY</span>
+    <div class="hist-divider-line"></div>
+  </div>
+
+  <div id="history-panel">
+    <div class="hist-header">
+      <span>PROJECT · BRANCH</span><span>DATE</span><span>TURNS</span>
+      <span>WASTE</span><span>TOKENS</span><span>CACHE</span><span style="text-align:right">COST</span>
+    </div>
+    <div id="history-rows"></div>
+    <div class="hist-footer" id="history-footer">Loading...</div>
   </div>
 
   <div class="banner" id="banner"></div>
