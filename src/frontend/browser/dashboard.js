@@ -421,53 +421,60 @@ function updateTile(tile, s) {
     mbEl.style.display = "";
   }
 
-  // Alert card — in-tile primary warning, driven by CLI notifications + token %
+  // Alert card — structured, live-computed, CLI-driven
   const alertCard = tile.querySelector("[data-field='alert-card']");
   if (alertCard) {
-    const sessionLevel  = s.notification_level;
-    const weeklyLevel   = s.notification_level_weekly;
-    const hasSessionMsg = !!s.last_notification;
-    const hasWeeklyMsg  = !!s.last_notification_weekly;
-    const showAlert     = pct >= 70 || !!sessionLevel || !!weeklyLevel;
+    const sessionLevel = s.notification_level;
+    const weeklyLevel  = s.notification_level_weekly;
+    const showAlert    = pct >= 70 || !!sessionLevel || !!weeklyLevel;
 
     if (showAlert) {
       alertCard.classList.add('open');
-      // Severity: red if any source is critical or pct >= 90
       const isRed = pct >= 90 || sessionLevel === 'critical' || weeklyLevel === 'critical';
       alertCard.classList.remove('warn-yellow', 'warn-red', 'warn-amber');
       alertCard.classList.add(isRed ? 'warn-red' : 'warn-yellow');
 
-      // Build message entries
       const msgs = tile.querySelector("[data-field='ac-messages']");
       if (msgs) {
         const entries = [];
-        if (hasSessionMsg || pct >= 70) {
-          const rawMsg = s.last_notification || `You've used ${Math.round(pct)}% of your Claude Code usage limit.`;
-          const sLevel = sessionLevel || (pct >= 90 ? 'critical' : 'warn');
-          entries.push({ type: 'SESSION / DAILY', msg: rawMsg, level: sLevel });
+
+        // Session/daily entry
+        const si = parseNotifFull(s.last_notification, s.notification_received_ms);
+        if (si || pct >= 70) {
+          const sPct    = si?.pct ?? Math.round(pct);
+          const sType   = si?.limitType ?? 'USAGE';
+          const sLevel  = sessionLevel || (pct >= 90 ? 'critical' : 'warn');
+          const sReset  = si?.timeUntil ? `resets in ${si.timeUntil}` : null;
+          const sUpgrade = si?.hasUpgrade ?? false;
+          entries.push({ type: sType, pct: sPct, level: sLevel, resetIn: sReset, upgrade: sUpgrade });
         }
-        if (hasWeeklyMsg) {
-          entries.push({ type: 'WEEKLY', msg: s.last_notification_weekly, level: weeklyLevel || 'warn' });
+
+        // Weekly entry
+        const wi = parseNotifFull(s.last_notification_weekly, s.notification_weekly_received_ms);
+        if (wi) {
+          const wLevel  = weeklyLevel || 'warn';
+          const wReset  = wi.timeUntil ? `resets in ${wi.timeUntil}` : null;
+          entries.push({ type: wi.limitType, pct: wi.pct, level: wLevel, resetIn: wReset, upgrade: false });
         }
+
         msgs.innerHTML = entries.map(e => `
           <div class="ac-msg-entry">
-            <span class="ac-msg-type ${e.level}">${e.type}</span>
-            <span class="ac-msg-text">${e.msg}</span>
+            <div class="ac-msg-row">
+              <span class="ac-msg-type ${e.level}">${e.type}</span>
+              <span class="ac-msg-pct ${e.level}">${e.pct != null ? e.pct + '%' : '—'}</span>
+            </div>
+            ${e.resetIn ? `<div class="ac-msg-reset">⏱ ${e.resetIn}</div>` : ''}
+            ${e.upgrade ? `<div class="ac-msg-upgrade">⬡ /upgrade to keep using Claude Code</div>` : ''}
           </div>`).join('');
       }
 
-      // Advisory text
       const advisory = tile.querySelector("[data-field='ac-advisory']");
       if (advisory) {
-        if (isRed) {
-          advisory.style.display = "";
-          advisory.className = "ac-advisory red";
-          advisory.textContent = "Critical: near limit. Create a checkpoint and consider aborting before the session is blocked.";
-        } else {
-          advisory.style.display = "";
-          advisory.className = "ac-advisory yellow";
-          advisory.textContent = "Warning: usage is getting high. Create a checkpoint now.";
-        }
+        advisory.style.display = "";
+        advisory.className = isRed ? "ac-advisory red" : "ac-advisory yellow";
+        advisory.textContent = isRed
+          ? "Critical: near limit. Create a checkpoint and consider aborting."
+          : "Warning: usage is getting high. Create a checkpoint now.";
       }
     } else {
       alertCard.classList.remove('open', 'warn-yellow', 'warn-red', 'warn-amber');
@@ -828,6 +835,133 @@ function parseNotificationPct_js(text) {
   if (!text) return 0;
   const m = text.match(/(\d+)\s*%/);
   return m ? parseInt(m[1], 10) : 0;
+}
+
+// Parse a notification message into structured fields with live countdown
+function parseNotifFull(text, receivedMs) {
+  if (!text) return null;
+  const lower = text.toLowerCase();
+
+  const pctMatch = text.match(/(\d+)\s*%/);
+  const pct = pctMatch ? parseInt(pctMatch[1], 10) : null;
+
+  let limitType = "USAGE";
+  if (lower.includes("weekly"))       limitType = "WEEKLY";
+  else if (lower.includes("session")) limitType = "SESSION";
+  else if (lower.includes("daily"))   limitType = "DAILY";
+
+  const hasUpgrade = lower.includes("/upgrade") || lower.includes("upgrade to keep");
+
+  // Compute reset UTC ms — try multiple patterns
+  let resetMs = null;
+
+  // Pattern: "(Xh from now)" anchored to receivedMs
+  const relMatch = text.match(/\((\d+(?:\.\d+)?)\s*h(?:ours?)?\s+from\s+now\)/i);
+  if (relMatch && receivedMs) {
+    resetMs = receivedMs + parseFloat(relMatch[1]) * 3600_000;
+  }
+
+  // Pattern: "resets [at] TIME [(TZ)]" or "resets DATE, TIME [(TZ)]"
+  const resetMatch = text.match(/resets(?:\s+at)?\s+((?:\w+\s+\d+,?\s+)?\d+(?::\d+)?\s*(?:am|pm)?)\s*(?:\(([^)]+)\))?/i);
+  if (resetMatch) {
+    const parsed = parseResetTimeStr(resetMatch[1].trim(), resetMatch[2] || null);
+    if (parsed) resetMs = parsed; // prefer explicit time over relative offset
+  }
+
+  let timeUntil = null;
+  if (resetMs) {
+    const diff = resetMs - Date.now();
+    timeUntil = diff > 0 ? fmtTimeUntil(diff) : "now";
+  }
+
+  return { pct, limitType, hasUpgrade, timeUntil, resetMs };
+}
+
+// Parse "1am", "10:30pm", "Apr 24, 10am" etc. into UTC ms of next occurrence
+function parseResetTimeStr(timeStr, tz) {
+  const now = new Date();
+
+  // "Apr 24, 10am" or "Apr 24 10am"
+  const dtRx = /^(\w{3,})\s+(\d+),?\s+(\d+)(?::(\d+))?\s*(am|pm)/i;
+  const dtMatch = timeStr.match(dtRx);
+  if (dtMatch) {
+    const months = { jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11 };
+    const mIdx = months[dtMatch[1].toLowerCase().slice(0, 3)];
+    if (mIdx !== undefined) {
+      let h = parseInt(dtMatch[3], 10);
+      const m = parseInt(dtMatch[4] || '0', 10);
+      if (dtMatch[5].toLowerCase() === 'pm' && h !== 12) h += 12;
+      if (dtMatch[5].toLowerCase() === 'am' && h === 12) h = 0;
+      const day = parseInt(dtMatch[2], 10);
+      for (const yr of [now.getFullYear(), now.getFullYear() + 1]) {
+        const dateStr = `${yr}-${String(mIdx + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+        const ms = buildDateInTz(dateStr, h, m, tz);
+        if (ms && ms > Date.now()) return ms;
+      }
+    }
+  }
+
+  // "1am" or "5pm" or "10:30am"
+  const toRx = /^(\d+)(?::(\d+))?\s*(am|pm)$/i;
+  const toMatch = timeStr.match(toRx);
+  if (toMatch) {
+    let h = parseInt(toMatch[1], 10);
+    const m = parseInt(toMatch[2] || '0', 10);
+    if (toMatch[3].toLowerCase() === 'pm' && h !== 12) h += 12;
+    if (toMatch[3].toLowerCase() === 'am' && h === 12) h = 0;
+    for (const daysAhead of [0, 1]) {
+      const d = new Date(now);
+      d.setDate(d.getDate() + daysAhead);
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const ms = buildDateInTz(dateStr, h, m, tz);
+      if (ms && ms > Date.now()) return ms;
+    }
+  }
+
+  return null;
+}
+
+// Convert a local date+time in a given IANA timezone to UTC ms
+function buildDateInTz(dateStr, h, m, tz) {
+  try {
+    if (!tz) {
+      return new Date(`${dateStr}T${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00`).getTime();
+    }
+    // Binary search: find the UTC ms whose local time in tz matches target h:m on dateStr
+    const targetDay = parseInt(dateStr.split('-')[2], 10);
+    const targetMin = h * 60 + m;
+    const rough = new Date(`${dateStr}T${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00Z`).getTime();
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    });
+    let lo = rough - 14 * 3_600_000, hi = rough + 14 * 3_600_000;
+    for (let i = 0; i < 40; i++) {
+      const mid = Math.floor((lo + hi) / 2);
+      const parts = Object.fromEntries(fmt.formatToParts(new Date(mid)).map(p => [p.type, p.value]));
+      const midH = parseInt(parts.hour, 10) % 24;
+      const midM = parseInt(parts.minute, 10);
+      const midDay = parseInt(parts.day, 10);
+      const dayOff = midDay - targetDay;
+      const minOff = dayOff * 1440 + midH * 60 + midM - targetMin;
+      if (Math.abs(minOff) < 0.5) return mid;
+      if (minOff > 0) hi = mid; else lo = mid;
+    }
+    return Math.floor((lo + hi) / 2);
+  } catch {
+    return null;
+  }
+}
+
+function fmtTimeUntil(ms) {
+  if (ms <= 0) return "now";
+  const totalSec = Math.round(ms / 1000);
+  if (totalSec < 60) return `${totalSec}s`;
+  const totalMin = Math.floor(totalSec / 60);
+  if (totalMin < 60) return `${totalMin}m`;
+  const h = Math.floor(totalMin / 60);
+  const mn = totalMin % 60;
+  return mn > 0 ? `${h}h ${mn}m` : `${h}h`;
 }
 
 function parseNotification(text) {

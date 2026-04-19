@@ -150,9 +150,11 @@ export class SessionStore extends EventEmitter {
         if (lower.includes("weekly")) {
           this.state.last_notification_weekly = msg;
           this.state.notification_level_weekly = level;
+          this.state.notification_weekly_received_ms = event.timestamp_ms;
         } else {
           this.state.last_notification = msg;
           this.state.notification_level = level;
+          this.state.notification_received_ms = event.timestamp_ms;
         }
       }
       this.state.last_seen_ms = event.timestamp_ms;
