@@ -185,6 +185,10 @@ export class JournalWatcher {
         if (best) {
           const filePath = path.join(dirPath, best.file);
           if (!this.fileStates.has(filePath)) {
+            // Evict any previously tracked file from this same directory
+            for (const existing of this.fileStates.keys()) {
+              if (path.dirname(existing) === dirPath) this.fileStates.delete(existing);
+            }
             this.bootstrapFile(filePath);
           }
         }
