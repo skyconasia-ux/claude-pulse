@@ -420,97 +420,99 @@ function updateTile(tile, s) {
     mbEl.style.display = "";
   }
 
-  // Alert card — structured, live-computed, CLI-driven
+  // Alert card — always visible; green / yellow / red state
   const alertCard = tile.querySelector("[data-field='alert-card']");
   if (alertCard) {
     const sessionLevel = s.notification_level;
     const weeklyLevel  = s.notification_level_weekly;
-    const showAlert    = pct >= 70 || !!s.last_notification || !!s.last_notification_weekly;
+    const isRed        = pct >= 90 || sessionLevel === 'critical' || weeklyLevel === 'critical';
+    const isYellow     = !isRed && (pct >= 70 || !!s.last_notification || !!s.last_notification_weekly);
 
-    if (showAlert) {
-      alertCard.classList.add('open');
-      const isRed = pct >= 90 || sessionLevel === 'critical' || weeklyLevel === 'critical';
-      alertCard.classList.remove('warn-yellow', 'warn-red', 'warn-amber');
-      alertCard.classList.add(isRed ? 'warn-red' : 'warn-yellow');
+    alertCard.classList.remove('warn-yellow', 'warn-red');
+    if (isRed)    alertCard.classList.add('warn-red');
+    else if (isYellow) alertCard.classList.add('warn-yellow');
 
-      const msgs = tile.querySelector("[data-field='ac-messages']");
-      if (msgs) {
+    const msgs = tile.querySelector("[data-field='ac-messages']");
+    if (msgs) {
+      if (isRed || isYellow) {
+        // Build notification entries
         const entries = [];
 
-        // Session/daily entry — snapshot + live extrapolated estimate
-        if (s.last_notification) {
+        if (s.last_notification || pct >= 70) {
           const si     = parseNotifFull(s.last_notification, s.notification_received_ms);
-          const sLevel = sessionLevel || 'warn';
-          const age    = s.notification_received_ms ? fmtTimeUntil(Date.now() - s.notification_received_ms) + ' ago' : 'recently';
+          const sLevel = sessionLevel === 'critical' ? 'critical' : 'warn';
+          const age    = s.notification_received_ms
+            ? fmtTimeUntil(Date.now() - s.notification_received_ms) + ' ago' : null;
 
-          // Extrapolate current % if we have the account limit and the token count at report time
           let liveEstPct = null;
-          const acctLimit = s.derived_account_limit;
+          const acctLimit      = s.derived_account_limit;
           const tokensAtReport = s.notification_tokens_at_report;
           const pctAtReport    = s.notification_pct_at_report ?? si?.pct;
           if (acctLimit && tokensAtReport !== undefined && pctAtReport !== undefined) {
-            const addedSince = (s.tokens_total || 0) - tokensAtReport;
-            liveEstPct = Math.min(100, pctAtReport + (addedSince / acctLimit * 100));
+            liveEstPct = Math.min(100, pctAtReport + ((s.tokens_total || 0) - tokensAtReport) / acctLimit * 100);
           }
 
+          const reportedStr = si?.pct != null ? si.pct + '%' : null;
+          const liveStr     = liveEstPct != null ? liveEstPct.toFixed(1) + '%' : null;
           entries.push({
-            type: si?.limitType ?? 'USAGE',
-            reportedPct: si?.pct,
-            liveEstPct,
-            level: sLevel,
-            age,
-            resetIn: si?.timeUntil ? `resets in ${si.timeUntil}` : null,
+            type: si?.limitType ?? 'USAGE', level: sLevel,
+            displayPct: liveStr ?? reportedStr,
+            subline: [age ? `reported ${reportedStr ?? '?'} · ${age}` : null, liveStr ? 'LIVE EST' : null],
+            resetIn: si?.timeUntil ? `⏱ resets in ${si.timeUntil}` : null,
             upgrade: si?.hasUpgrade ?? false,
           });
         }
 
-        // Weekly entry — snapshot only (no account limit to extrapolate from)
         if (s.last_notification_weekly) {
-          const wi     = parseNotifFull(s.last_notification_weekly, s.notification_weekly_received_ms);
-          const wLevel = weeklyLevel || 'warn';
-          const age    = s.notification_weekly_received_ms ? fmtTimeUntil(Date.now() - s.notification_weekly_received_ms) + ' ago' : 'recently';
+          const wi  = parseNotifFull(s.last_notification_weekly, s.notification_weekly_received_ms);
+          const age = s.notification_weekly_received_ms
+            ? fmtTimeUntil(Date.now() - s.notification_weekly_received_ms) + ' ago' : null;
           entries.push({
-            type: wi?.limitType ?? 'WEEKLY',
-            reportedPct: wi?.pct,
-            liveEstPct: null,
-            level: wLevel,
-            age,
-            resetIn: wi?.timeUntil ? `resets in ${wi.timeUntil}` : null,
+            type: wi?.limitType ?? 'WEEKLY', level: weeklyLevel === 'critical' ? 'critical' : 'warn',
+            displayPct: wi?.pct != null ? wi.pct + '%' : null,
+            subline: [age ? `reported · ${age}` : null, null],
+            resetIn: wi?.timeUntil ? `⏱ resets in ${wi.timeUntil}` : null,
             upgrade: false,
           });
         }
 
-        msgs.innerHTML = entries.map(e => {
-          const reportedStr = e.reportedPct != null ? e.reportedPct + '%' : (e.pct != null ? e.pct + '%' : '—');
-          const liveStr     = e.liveEstPct != null ? e.liveEstPct.toFixed(1) + '% est. now' : null;
-          return `
+        msgs.innerHTML = entries.map(e => `
           <div class="ac-msg-entry">
             <div class="ac-msg-row">
               <span class="ac-msg-type ${e.level}">${e.type}</span>
-              <span class="ac-msg-pct ${e.level}">${liveStr ?? reportedStr}</span>
+              ${e.displayPct ? `<span class="ac-msg-pct ${e.level}">${e.displayPct}</span>` : ''}
             </div>
-            <div class="ac-msg-subrow">
-              <span class="ac-msg-age">reported ${reportedStr} · ${e.age}</span>
-              ${liveStr ? `<span class="ac-msg-live-badge">LIVE EST</span>` : ''}
-            </div>
-            ${e.resetIn ? `<div class="ac-msg-reset">⏱ ${e.resetIn}</div>` : ''}
+            ${e.subline[0] ? `<div class="ac-msg-subrow">
+              <span class="ac-msg-age">${e.subline[0]}</span>
+              ${e.subline[1] ? `<span class="ac-msg-live-badge">${e.subline[1]}</span>` : ''}
+            </div>` : ''}
+            ${e.resetIn ? `<div class="ac-msg-reset">${e.resetIn}</div>` : ''}
             ${e.upgrade ? `<div class="ac-msg-upgrade">⬡ /upgrade to keep using Claude Code</div>` : ''}
-          </div>`;
-        }).join('');
+          </div>`).join('');
+      } else {
+        // Green — all clear
+        msgs.innerHTML = `<div class="ac-msg-entry">
+          <div class="ac-msg-row">
+            <span class="ac-msg-type green">STATUS</span>
+            <span class="ac-msg-pct green">ALL CLEAR</span>
+          </div>
+        </div>`;
       }
+    }
 
-      const advisory = tile.querySelector("[data-field='ac-advisory']");
-      if (advisory) {
-        advisory.style.display = "";
-        advisory.className = isRed ? "ac-advisory red" : "ac-advisory yellow";
-        advisory.textContent = isRed
-          ? "Critical: near limit. Create a checkpoint and consider aborting."
-          : "Warning: usage is getting high. Create a checkpoint now.";
+    const advisory = tile.querySelector("[data-field='ac-advisory']");
+    if (advisory) {
+      if (isRed) {
+        advisory.className = "ac-advisory red";
+        advisory.textContent = "Near limit — consider aborting now and resuming after the usage resets.";
+      } else if (isYellow) {
+        advisory.className = "ac-advisory yellow";
+        advisory.textContent = "Usage getting high — create a checkpoint now before the session is blocked.";
+      } else {
+        advisory.className = "ac-advisory green";
+        advisory.textContent = "Usage is within normal range. No action needed.";
       }
-    } else {
-      alertCard.classList.remove('open', 'warn-yellow', 'warn-red', 'warn-amber');
-      const advisory = tile.querySelector("[data-field='ac-advisory']");
-      if (advisory) advisory.style.display = "none";
+      advisory.style.display = "";
     }
   }
 }
