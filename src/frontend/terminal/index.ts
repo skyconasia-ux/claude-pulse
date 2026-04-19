@@ -7,6 +7,7 @@ import {
   pickSelected,
   fmtEta,
   fmtTokens,
+  fmtElapsed,
   alertColor,
   sessionRows,
   shortModelName,
@@ -82,6 +83,10 @@ screen.key(["escape", "q", "C-c"], () => process.exit(0));
 const allSessions = new Map<string, SessionState>();
 let selectedId = "";
 const burnHistory: number[] = [];
+let burnViewSize = BURN_HISTORY_SIZE;
+let burnViewOffset = 0;
+let isDragging = false;
+let lastDragX = 0;
 
 // ── Helpers ──────────────────────────────────────────────
 function log2(s: string) {
@@ -104,6 +109,12 @@ function renderDetail(state: SessionState): void {
   const left = Math.max(THRESHOLD - weighted, 0);
   const pct = ((weighted / THRESHOLD) * 100).toFixed(1);
 
+  const now = Date.now();
+  const sessElapsed = fmtElapsed(now - state.started_at);
+  const projElapsed = state.project_first_seen_ms
+    ? fmtElapsed(now - state.project_first_seen_ms)
+    : "—";
+
   metricsBox.setContent([
     `{cyan-fg}PROJECT{/}  ${state.project_name}`,
     `{cyan-fg}STATE{/}    ${state.lifecycle.toUpperCase()}`,
@@ -114,6 +125,8 @@ function renderDetail(state: SessionState): void {
     `{magenta-fg}COST{/}     $${state.cost_usd.toFixed(4)}`,
     `{yellow-fg}TURNS{/}    ${state.turns}`,
     `{white-fg}BUDGET{/}   ${pct}%`,
+    `{cyan-fg}SESS{/}     ${sessElapsed}`,
+    `{cyan-fg}PROJ{/}     ${projElapsed}`,
   ].join("\n"));
 
   predictionBox.setContent([
@@ -136,9 +149,15 @@ function renderDetail(state: SessionState): void {
 
   burnHistory.push(Math.round(state.burn_rate_per_sec));
   if (burnHistory.length > BURN_HISTORY_SIZE) burnHistory.shift();
+  burnViewOffset = Math.max(0, Math.min(burnViewOffset, Math.max(0, burnHistory.length - burnViewSize)));
+  const endIdx = Math.max(0, burnHistory.length - burnViewOffset);
+  const startIdx = Math.max(0, endIdx - burnViewSize);
+  const viewData = burnHistory.slice(startIdx, endIdx);
+  const zoomLabel = burnViewSize < BURN_HISTORY_SIZE ? ` [${burnViewSize}pt zoom]` : "";
+  (burnChart as unknown as { setLabel: (s: string) => void }).setLabel(` BURN RATE (tok/s)${zoomLabel} `);
   burnChart.setData({
-    titles: burnHistory.map((_, i) => String(i + 1)),
-    data: burnHistory,
+    titles: viewData.map((_, i) => String(startIdx + i + 1)),
+    data: viewData,
   });
 }
 
@@ -168,6 +187,30 @@ screen.key(["down", "j"], () => {
   const idx = ids.indexOf(selectedId);
   selectedId = ids[Math.min(ids.length - 1, idx + 1)];
   render();
+});
+
+// ── Mouse: zoom + pan ────────────────────────────────────
+screen.enableMouse();
+screen.on("mouse", (data: { action: string; button?: string; x: number; y: number }) => {
+  if (data.action === "wheelup") {
+    burnViewSize = Math.max(5, burnViewSize - 3);
+    render();
+  } else if (data.action === "wheeldown") {
+    burnViewSize = Math.min(BURN_HISTORY_SIZE, burnViewSize + 3);
+    render();
+  } else if (data.action === "mousedown" && data.button === "left") {
+    isDragging = true;
+    lastDragX = data.x;
+  } else if (data.action === "mouseup") {
+    isDragging = false;
+  } else if (data.action === "mousemove" && isDragging) {
+    const delta = Math.round((lastDragX - data.x) / 2);
+    if (delta !== 0) {
+      burnViewOffset = Math.max(0, Math.min(Math.max(0, burnHistory.length - burnViewSize), burnViewOffset + delta));
+      lastDragX = data.x;
+      render();
+    }
+  }
 });
 
 // ── WebSocket ────────────────────────────────────────────

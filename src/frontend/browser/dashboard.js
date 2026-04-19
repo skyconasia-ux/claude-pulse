@@ -345,7 +345,8 @@ function updateTile(tile, s) {
   if (canvas) {
     const hist = chartHistory[s.session_id] || [];
     const hasTokens = hist.some(p => p.tokens > 0);
-    set(tile, "chart-label", hasTokens ? "TOKEN BURN — LIVE" : "TOOL CALLS — LIVE");
+    const modelTag = s.model_last ? " [" + shortModelName(s.model_last) + "]" : "";
+    set(tile, "chart-label", (hasTokens ? "TOKEN BURN — LIVE" : "TOOL CALLS — LIVE") + modelTag);
     drawChart(canvas, s.session_id);
     if (!canvas._tooltipWired) {
       canvas._tooltipWired = true;
@@ -651,13 +652,17 @@ function drawChart(canvas, sessionId) {
   ctx.stroke();
   ctx.shadowBlur = 0;
 
-  // Dots
+  // Dots — colored by model (opus=purple, haiku=green, sonnet=cyan)
   for (let i = 0; i < hist.length; i++) {
+    const isLast = i === hist.length - 1;
+    const m = hist[i].model || "";
+    const solid = m.includes("opus") ? "#bf00ff" : m.includes("haiku") ? "#00ff88" : "#00fff0";
+    const dim   = m.includes("opus") ? "rgba(191,0,255,0.55)" : m.includes("haiku") ? "rgba(0,255,136,0.55)" : "rgba(0,255,240,0.55)";
     ctx.beginPath();
-    ctx.arc(px(i), py(vals[i]), i === hist.length - 1 ? 3.5 : 2, 0, Math.PI * 2);
-    ctx.fillStyle = i === hist.length - 1 ? "#00fff0" : "rgba(0,255,240,0.55)";
-    ctx.shadowColor = "#00fff0";
-    ctx.shadowBlur = i === hist.length - 1 ? 6 : 0;
+    ctx.arc(px(i), py(vals[i]), isLast ? 3.5 : 2, 0, Math.PI * 2);
+    ctx.fillStyle = isLast ? solid : dim;
+    ctx.shadowColor = solid;
+    ctx.shadowBlur = isLast ? 6 : 0;
     ctx.fill();
     ctx.shadowBlur = 0;
   }

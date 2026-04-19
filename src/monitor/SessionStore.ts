@@ -216,7 +216,7 @@ export class SessionStore extends EventEmitter {
   }
 
   private accumulateModel(event: NormalizedEvent): void {
-    const m = event.model ?? "unknown";
+    const m = event.model ?? this.state.model_last ?? "unknown";
     if (!this.state.models) this.state.models = {};
     if (!this.state.models[m]) {
       this.state.models[m] = { tokens_in: 0, tokens_out: 0, cost_usd: 0 };
