@@ -93,6 +93,7 @@ function handleMessage(msg) {
   } else if (msg.type === "session_updated") {
     sessions[msg.session.session_id] = msg.session;
     recordHistory(msg.session);
+    updateCommandCenter();
     pendingRender = true;
     // If a checkpoint was queued and session is now idle, server will run it — clear queued state
     const activeLifecycles = ["running", "tool_use", "thinking"];
@@ -116,6 +117,7 @@ function handleMessage(msg) {
     renderTile(msg.state);
     updateTopbar();
     updateEmptyState();
+    updateCommandCenter();
     showBanner(msg.severity, msg.state.project_name);
   }
 }
@@ -134,6 +136,7 @@ function renderAll() {
   for (const s of Object.values(sessions)) renderTile(s);
   updateTopbar();
   updateEmptyState();
+  updateCommandCenter();
 }
 
 function renderTile(state) {
@@ -590,6 +593,148 @@ function updateEmptyState() {
   const empty = Object.keys(sessions).length === 0;
   document.getElementById("session-grid").style.display = empty ? "none" : "";
   document.getElementById("empty-state").style.display = empty ? "block" : "none";
+}
+
+function updateCommandCenter() {
+  const all = Object.values(sessions);
+  if (all.length === 0) return;
+
+  // Session counts
+  const activeLifecycles = new Set(["running", "tool_use", "thinking"]);
+  const closedLifecycles = new Set(["closed", "stopped", "cancelled", "ctrl_c"]);
+  let nActive = 0, nIdle = 0, nClosed = 0;
+  for (const s of all) {
+    if (closedLifecycles.has(s.lifecycle)) nClosed++;
+    else if (activeLifecycles.has(s.lifecycle)) nActive++;
+    else nIdle++;
+  }
+  document.getElementById("cc-active").textContent  = nActive  + (nActive  === 1 ? " ACTIVE"  : " ACTIVE");
+  document.getElementById("cc-idle").textContent    = nIdle    + (nIdle    === 1 ? " IDLE"    : " IDLE");
+  const ccClosed = document.getElementById("cc-closed");
+  if (nClosed > 0) { ccClosed.textContent = nClosed + " CLOSED"; ccClosed.style.display = ""; }
+  else ccClosed.style.display = "none";
+
+  // Aggregate totals
+  let totTokens = 0, totCost = 0, totTurns = 0, totTools = 0, totBurn = 0;
+  const famTokens = { opus: 0, sonnet: 0, haiku: 0 };
+  for (const s of all) {
+    totTokens += s.tokens_total || 0;
+    totCost   += s.cost_usd    || 0;
+    totTurns  += s.turns       || 0;
+    totTools  += s.tool_calls_total || 0;
+    totBurn   += s.burn_rate_per_sec || 0;
+    for (const [id, stats] of Object.entries(s.models || {})) {
+      const f = modelFamily(id);
+      if (f) famTokens[f] += (stats.tokens_in + stats.tokens_out);
+    }
+  }
+
+  const ccTokensEl = document.getElementById("cc-tokens");
+  countUp(ccTokensEl, totTokens, n => {
+    if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + "M";
+    if (n >= 1_000)     return (n / 1_000).toFixed(1) + "K";
+    return Math.round(n).toString();
+  });
+  const ccCostEl = document.getElementById("cc-cost");
+  countUp(ccCostEl, totCost, n => "$" + n.toFixed(4));
+  const ccTurnsEl = document.getElementById("cc-turns");
+  countUp(ccTurnsEl, totTurns, n => Math.round(n).toString());
+  const ccToolsEl = document.getElementById("cc-tools");
+  countUp(ccToolsEl, totTools, n => Math.round(n).toString());
+  const ccBurnEl = document.getElementById("cc-burn");
+  countUp(ccBurnEl, totBurn, n => Math.round(n) + "/s");
+
+  // Model chips — only show families with usage
+  const chips = document.getElementById("cc-model-chips");
+  if (chips) {
+    const rows = [];
+    if (famTokens.opus   > 0) rows.push(`<span class="cc-model-chip opus">OPUS ${fmtTokensM(famTokens.opus)}</span>`);
+    if (famTokens.sonnet > 0) rows.push(`<span class="cc-model-chip sonnet">SONNET ${fmtTokensM(famTokens.sonnet)}</span>`);
+    if (famTokens.haiku  > 0) rows.push(`<span class="cc-model-chip haiku">HAIKU ${fmtTokensM(famTokens.haiku)}</span>`);
+    chips.innerHTML = rows.length ? rows.join("") : '<span style="color:var(--gray);font-size:10px">—</span>';
+  }
+
+  // Account usage — find the most informative notification across all sessions
+  // Prefer: most recent notification_received_ms, best derived_account_limit
+  let bestSession = null;
+  for (const s of all) {
+    if (!s.last_notification) continue;
+    if (!bestSession) { bestSession = s; continue; }
+    const sTs = s.notification_received_ms ?? 0;
+    const bTs = bestSession.notification_received_ms ?? 0;
+    // Prefer the one with a derived account limit; then the most recent
+    const sHasLimit = !!s.derived_account_limit;
+    const bHasLimit = !!bestSession.derived_account_limit;
+    if (sHasLimit && !bHasLimit) { bestSession = s; continue; }
+    if (!sHasLimit && bHasLimit) continue;
+    if (sTs > bTs) bestSession = s;
+  }
+
+  const pctEl  = document.getElementById("cc-acct-pct");
+  const fillEl = document.getElementById("cc-acct-fill");
+  const subEl  = document.getElementById("cc-acct-sub");
+  const stackEl = document.getElementById("cc-notif-stack");
+
+  if (bestSession) {
+    const si         = parseNotifFull(bestSession.last_notification, bestSession.notification_received_ms);
+    const acctLimit  = bestSession.derived_account_limit;
+    const tokensAt   = bestSession.notification_tokens_at_report;
+    const pctAt      = bestSession.notification_pct_at_report ?? si?.pct ?? 0;
+
+    // Live estimate if we have account limit
+    let displayPct, isEst = false;
+    if (acctLimit && tokensAt !== undefined) {
+      const added = totTokens - tokensAt;
+      displayPct = Math.min(100, pctAt + (added / acctLimit * 100));
+      isEst = true;
+    } else {
+      displayPct = pctAt;
+    }
+
+    const band = displayPct >= 90 ? "red" : displayPct >= 70 ? "yellow" : "green";
+    pctEl.className   = "cc-account-bar-pct " + band;
+    fillEl.className  = "cc-account-fill "    + band;
+    pctEl.textContent = displayPct.toFixed(1) + "%";
+    fillEl.style.width = Math.min(displayPct, 100).toFixed(1) + "%";
+
+    const age = bestSession.notification_received_ms
+      ? fmtTimeUntil(Date.now() - bestSession.notification_received_ms) + " ago"
+      : "recently";
+    const resetStr = si?.timeUntil ? ` · ⏱ resets in ${si.timeUntil}` : "";
+    subEl.innerHTML = `Reported ${pctAt}% · ${age}${resetStr}`
+      + (isEst ? ' <span class="est-tag">LIVE EST</span>' : '');
+
+    // Notification cards (session + weekly from all sessions)
+    const cards = [];
+    for (const s of all) {
+      if (s.last_notification) {
+        const ni = parseNotifFull(s.last_notification, s.notification_received_ms);
+        const lvl = s.notification_level === "critical" ? "red" : "yellow";
+        const age2 = s.notification_received_ms ? fmtTimeUntil(Date.now() - s.notification_received_ms) + " ago" : "";
+        const reset2 = ni?.timeUntil ? `⏱ resets in ${ni.timeUntil}` : "";
+        cards.push(`<div class="cc-notif-entry ${lvl}">
+          <span class="cc-notif-type">${s.project_name} · ${ni?.limitType ?? "USAGE"} ${ni?.pct ?? ""}%</span>
+          ${age2 ? `<span class="cc-notif-reset">${age2}${reset2 ? " · " + reset2 : ""}</span>` : ""}
+        </div>`);
+      }
+      if (s.last_notification_weekly) {
+        const wi = parseNotifFull(s.last_notification_weekly, s.notification_weekly_received_ms);
+        const lvl = s.notification_level_weekly === "critical" ? "red" : "yellow";
+        const reset3 = wi?.timeUntil ? `⏱ resets in ${wi.timeUntil}` : "";
+        cards.push(`<div class="cc-notif-entry ${lvl}">
+          <span class="cc-notif-type">${s.project_name} · WEEKLY ${wi?.pct ?? ""}%</span>
+          ${reset3 ? `<span class="cc-notif-reset">${reset3}</span>` : ""}
+        </div>`);
+      }
+    }
+    stackEl.innerHTML = cards.length ? cards.join("") : '<div class="cc-no-notif">No usage alerts</div>';
+  } else {
+    pctEl.textContent = "—";
+    pctEl.className   = "cc-account-bar-pct green";
+    fillEl.style.width = "0%";
+    subEl.textContent = "Waiting for first Claude Code notification…";
+    stackEl.innerHTML = '<div class="cc-no-notif">No usage alerts</div>';
+  }
 }
 
 function updateElapsed() {

@@ -360,6 +360,89 @@
     }
     .btn-history:hover  { border-color: var(--amber); color: var(--amber); }
     .btn-history.active { background: rgba(255,170,0,0.1); border-color: var(--amber); color: var(--amber); }
+
+    /* ── Command Center ───────────────────────────────── */
+    #command-center {
+      background: var(--bg2); border: 1px solid rgba(0,255,240,0.2);
+      border-radius: 10px; padding: 18px 22px; margin-bottom: 18px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .cc-header {
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .cc-title {
+      font-size: 11px; letter-spacing: 3px; color: var(--cyan);
+      text-shadow: 0 0 10px var(--cyan); font-weight: bold;
+    }
+    .cc-session-badges { display: flex; gap: 8px; align-items: center; }
+    .cc-badge {
+      font-size: 9px; letter-spacing: 1.5px; padding: 2px 9px;
+      border-radius: 3px; font-weight: bold;
+    }
+    .cc-badge-active  { background: rgba(0,255,136,0.1);  color: var(--green); border: 1px solid rgba(0,255,136,0.3); }
+    .cc-badge-idle    { background: rgba(255,170,0,0.08); color: var(--amber); border: 1px solid rgba(255,170,0,0.25); }
+    .cc-badge-closed  { background: rgba(68,68,102,0.2);  color: var(--gray);  border: 1px solid rgba(68,68,102,0.4); }
+
+    .cc-stats {
+      display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px;
+    }
+    .cc-stat { display: flex; flex-direction: column; gap: 3px; }
+    .cc-stat-label { font-size: 8px; letter-spacing: 2px; color: var(--dim); }
+    .cc-stat-value { font-size: 22px; font-weight: bold; line-height: 1; }
+    .cc-tokens .cc-stat-value { color: var(--cyan);   text-shadow: 0 0 10px var(--cyan); }
+    .cc-cost   .cc-stat-value { color: var(--purple); text-shadow: 0 0 10px var(--purple); }
+    .cc-turns  .cc-stat-value { color: var(--amber); }
+    .cc-tools  .cc-stat-value { color: rgba(0,255,240,0.55); }
+    .cc-burn   .cc-stat-value { color: var(--cyan); font-size: 18px; }
+    .cc-models .cc-stat-value { font-size: 11px; display: flex; flex-direction: column; gap: 3px; margin-top: 2px; }
+    .cc-model-chip {
+      font-size: 8px; letter-spacing: 1px; padding: 2px 6px; border-radius: 3px;
+      font-weight: bold; white-space: nowrap;
+    }
+    .cc-model-chip.opus   { background: rgba(191,0,255,0.12); border: 1px solid rgba(191,0,255,0.35); color: var(--purple); }
+    .cc-model-chip.sonnet { background: rgba(0,255,240,0.08); border: 1px solid rgba(0,255,240,0.3);  color: var(--cyan); }
+    .cc-model-chip.haiku  { background: rgba(0,255,136,0.08); border: 1px solid rgba(0,255,136,0.3);  color: var(--green); }
+
+    .cc-divider { height: 1px; background: rgba(0,255,240,0.08); }
+
+    .cc-account {
+      display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: start;
+    }
+    .cc-account-bar-wrap { display: flex; flex-direction: column; gap: 5px; }
+    .cc-account-bar-header {
+      display: flex; justify-content: space-between; align-items: baseline;
+    }
+    .cc-account-bar-label { font-size: 9px; letter-spacing: 2px; color: var(--dim); font-weight: bold; }
+    .cc-account-bar-pct   { font-size: 20px; font-weight: bold; }
+    .cc-account-bar-pct.green  { color: var(--green); }
+    .cc-account-bar-pct.yellow { color: var(--amber); }
+    .cc-account-bar-pct.red    { color: var(--red); }
+    .cc-account-track { background: #0d0d1a; border-radius: 4px; height: 12px; overflow: hidden; }
+    .cc-account-fill  {
+      height: 100%; border-radius: 4px; transition: width 0.6s ease;
+      background: linear-gradient(90deg, var(--green), var(--cyan));
+    }
+    .cc-account-fill.yellow { background: linear-gradient(90deg, var(--amber), #ff8800); }
+    .cc-account-fill.red    { background: linear-gradient(90deg, #ff4455, #ff0022); }
+    .cc-account-sub {
+      font-size: 8px; color: rgba(255,255,255,0.35); letter-spacing: 0.5px; margin-top: 2px;
+    }
+    .cc-account-sub .est-tag {
+      font-size: 7px; letter-spacing: 1.5px; padding: 1px 4px; border-radius: 2px;
+      background: rgba(0,255,136,0.1); border: 1px solid rgba(0,255,136,0.25); color: var(--green);
+      margin-left: 4px;
+    }
+    .cc-notif-stack { display: flex; flex-direction: column; gap: 6px; min-width: 200px; }
+    .cc-notif-entry {
+      display: flex; flex-direction: column; gap: 2px;
+      background: rgba(255,170,0,0.05); border: 1px solid rgba(255,170,0,0.2);
+      border-radius: 5px; padding: 7px 10px;
+    }
+    .cc-notif-entry.red { background: rgba(255,68,85,0.05); border-color: rgba(255,68,85,0.3); }
+    .cc-notif-type  { font-size: 7px; letter-spacing: 2px; color: var(--amber); font-weight: bold; }
+    .cc-notif-entry.red .cc-notif-type { color: var(--red); }
+    .cc-notif-reset { font-size: 9px; color: rgba(255,255,255,0.5); }
+    .cc-no-notif    { font-size: 9px; color: rgba(255,255,255,0.2); letter-spacing: 1px; }
   </style>
 </head>
 <body>
@@ -378,6 +461,59 @@
       <span><span class="conn-dot" id="conn-dot"></span><span id="conn-label">Connecting...</span></span>
       <span id="session-count">0 sessions</span>
       <span id="elapsed">0s</span>
+    </div>
+  </div>
+
+  <div id="command-center">
+    <div class="cc-header">
+      <span class="cc-title">⬡ ALL SESSIONS</span>
+      <div class="cc-session-badges">
+        <span class="cc-badge cc-badge-active" id="cc-active">0 ACTIVE</span>
+        <span class="cc-badge cc-badge-idle"   id="cc-idle">0 IDLE</span>
+        <span class="cc-badge cc-badge-closed" id="cc-closed" style="display:none">0 CLOSED</span>
+      </div>
+    </div>
+    <div class="cc-stats">
+      <div class="cc-stat cc-tokens">
+        <div class="cc-stat-label">TOTAL TOKENS</div>
+        <div class="cc-stat-value" id="cc-tokens">0</div>
+      </div>
+      <div class="cc-stat cc-cost">
+        <div class="cc-stat-label">TOTAL COST</div>
+        <div class="cc-stat-value" id="cc-cost">$0.00</div>
+      </div>
+      <div class="cc-stat cc-turns">
+        <div class="cc-stat-label">TOTAL TURNS</div>
+        <div class="cc-stat-value" id="cc-turns">0</div>
+      </div>
+      <div class="cc-stat cc-tools">
+        <div class="cc-stat-label">TOTAL TOOLS</div>
+        <div class="cc-stat-value" id="cc-tools">0</div>
+      </div>
+      <div class="cc-stat cc-burn">
+        <div class="cc-stat-label">COMBINED BURN/S</div>
+        <div class="cc-stat-value" id="cc-burn">0</div>
+      </div>
+      <div class="cc-stat cc-models">
+        <div class="cc-stat-label">MODELS IN USE</div>
+        <div class="cc-stat-value" id="cc-model-chips"></div>
+      </div>
+    </div>
+    <div class="cc-divider"></div>
+    <div class="cc-account">
+      <div class="cc-account-bar-wrap">
+        <div class="cc-account-bar-header">
+          <span class="cc-account-bar-label">ACCOUNT USAGE</span>
+          <span class="cc-account-bar-pct green" id="cc-acct-pct">—</span>
+        </div>
+        <div class="cc-account-track">
+          <div class="cc-account-fill green" id="cc-acct-fill" style="width:0%"></div>
+        </div>
+        <div class="cc-account-sub" id="cc-acct-sub">Waiting for first Claude Code notification…</div>
+      </div>
+      <div class="cc-notif-stack" id="cc-notif-stack">
+        <div class="cc-no-notif">No usage alerts</div>
+      </div>
     </div>
   </div>
 
