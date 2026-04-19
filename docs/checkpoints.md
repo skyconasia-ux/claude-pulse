@@ -58,24 +58,25 @@
 
 ---
 
+---
+
 ## CURRENT CHECKPOINT
 
-### 2026-04-18 — PID Tracking + Terminal Multi-Session (plans written, execution starting)
+### 2026-04-19 — PID Tracking + Terminal Multi-Session (complete)
 
-**Objective 1:** Real process kill on Abort — inject parent PID via PowerShell hook, store on SessionState, kill via `process.kill(pid)` in `markStopped`.
+**PID Tracking (all 5 tasks done):**
+- `pid` field added to `NormalizedEvent` and `SessionState`
+- PID extracted from hook payload in `EventNormalizer`
+- PID stored and preserved in `SessionStore` across events
+- `markStopped` in `SessionRegistry` calls `process.kill(pid)` with error handling
+- PowerShell hooks updated to inject parent PID in all three hook types
+- 58/58 tests passing after PID work
 
-**Objective 2:** Terminal multi-session layout — session list table (keyboard-navigable) + detail pane for selected session, helpers unit-tested.
-
-**Completed:**
-- Plans written: `docs/superpowers/plans/2026-04-18-pid-tracking-abort.md` (5 tasks)
-- Plans written: `docs/superpowers/plans/2026-04-18-terminal-multi-session.md` (3 tasks)
-- Web dashboard redesign pending (user instructions forthcoming)
-
-**Current progress:** Plans ready, execution starting now.
-
-**Next step:** Execute both plans via Subagent-Driven Development.
+**Terminal Multi-Session (all 3 tasks done):**
+- `src/frontend/terminal/helpers.ts` created with pure logic helpers (pickMostActive, pickSelected, fmtEta, fmtTokens, alertColor, sessionRows, shortModelName)
+- `tests/frontend/terminal.test.ts` — 22 new tests, all passing
+- `src/frontend/terminal/index.ts` — full rewrite: session list table (top, keyboard-navigable), detail pane (metrics + model badge + weighted budget, burn chart, prediction, alert), log box
+- 80/80 tests total; pushed to GitHub
 
 **Pending:**
-- PID tracking (Tasks 1–5)
-- Terminal multi-session layout (Tasks 1–3)
 - Web dashboard redesign (user instructions pending)
