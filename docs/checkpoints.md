@@ -76,18 +76,27 @@
 - `src/frontend/terminal/index.ts` — full rewrite: session list table (top, keyboard-navigable), detail pane (metrics + model badge + weighted budget, burn chart, prediction, alert), log box
 - 80/80 tests total; pushed to GitHub
 
+### 2026-04-19 — Phase 3 Browser Dashboard (complete)
+- Model tooltip, 5-band warning CSS, header alert badge, structured alert card; 80/80 tests
+
 ---
 
 ## CURRENT CHECKPOINT
 
-### 2026-04-19 — Phase 3 Browser Dashboard (complete)
+### 2026-04-19 — Real-World Smoke Test Readiness
 
-**Completed:**
-- Model in graph tooltip: each history point records `model_last`; tooltip shows time, tokens, model name
-- 5-band warning system: 70/80/90/99/exceeded bands via `data-band` CSS attribute; replaces old two-class approach
-- Header alert badge: blinking `⚠ N%` badge in tile header at ≥70%, amber <90%, red ≥90%, `⚠ MAX` at 100%
-- Alert card: structured USAGE LIMIT WARNING panel with live %, parsed RESETS time, /upgrade line; replaces plain warn-banner
-- 80/80 tests passing; pushed to GitHub
+**Objective:** Validate Phase 3 features against live Claude Code sessions.
 
-**Pending:**
-- None — all planned phases complete
+**Completed work:**
+- Phase 3 fully shipped: alert card, 5-band system, header badge, model tooltip
+- Smoke test checklist defined (single session, multi-session, browser relaunch, band verification)
+- All docs, CLAUDE.md, checkpoints updated; pushed to GitHub
+- 80/80 tests; tsc clean
+
+**Current progress:** Implementation 100% — awaiting real-world validation.
+
+**Next step:** Run smoke test checklist against live session(s); confirm all bands, tooltip model line, and alert card RESETS/upgrade parsing work end-to-end.
+
+**Pending tasks:**
+- Execute smoke test checklist (A–E)
+- File any bugs found during real-world testing
