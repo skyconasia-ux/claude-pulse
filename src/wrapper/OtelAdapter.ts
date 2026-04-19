@@ -16,6 +16,15 @@ export function createOtelRouter(enabled: boolean): Router {
   }
   log.info("OTEL adapter enabled, listening on POST /otel");
   router.post("/otel", (req: Request, res: Response) => {
+    // Dump first span's full attribute list to find rate-limit keys
+    try {
+      const rs = (req.body as any)?.resourceSpans?.[0];
+      const span = rs?.scopeSpans?.[0]?.spans?.[0];
+      if (span?.attributes?.length) {
+        log.info("OTEL span attrs", { name: span.name, attrs: span.attributes });
+      }
+    } catch { /* ignore */ }
+
     const events = normalizeOtelPayload(req.body as Record<string, unknown>);
     if (events.length === 0) {
       log.warn("POST /otel produced no events — payload may be malformed or unsupported");

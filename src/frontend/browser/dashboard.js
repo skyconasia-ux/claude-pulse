@@ -434,14 +434,26 @@ function updateTile(tile, s) {
       if (msgs) {
         const entries = [];
 
-        // Session/daily entry — show as snapshot with age
+        // Session/daily entry — snapshot + live extrapolated estimate
         if (s.last_notification) {
-          const si      = parseNotifFull(s.last_notification, s.notification_received_ms);
-          const sLevel  = sessionLevel || 'warn';
-          const age     = s.notification_received_ms ? fmtTimeUntil(Date.now() - s.notification_received_ms) + ' ago' : 'recently';
+          const si     = parseNotifFull(s.last_notification, s.notification_received_ms);
+          const sLevel = sessionLevel || 'warn';
+          const age    = s.notification_received_ms ? fmtTimeUntil(Date.now() - s.notification_received_ms) + ' ago' : 'recently';
+
+          // Extrapolate current % if we have the account limit and the token count at report time
+          let liveEstPct = null;
+          const acctLimit = s.derived_account_limit;
+          const tokensAtReport = s.notification_tokens_at_report;
+          const pctAtReport    = s.notification_pct_at_report ?? si?.pct;
+          if (acctLimit && tokensAtReport !== undefined && pctAtReport !== undefined) {
+            const addedSince = (s.tokens_total || 0) - tokensAtReport;
+            liveEstPct = Math.min(100, pctAtReport + (addedSince / acctLimit * 100));
+          }
+
           entries.push({
             type: si?.limitType ?? 'USAGE',
-            pct: si?.pct,
+            reportedPct: si?.pct,
+            liveEstPct,
             level: sLevel,
             age,
             resetIn: si?.timeUntil ? `resets in ${si.timeUntil}` : null,
@@ -449,14 +461,15 @@ function updateTile(tile, s) {
           });
         }
 
-        // Weekly entry
+        // Weekly entry — snapshot only (no account limit to extrapolate from)
         if (s.last_notification_weekly) {
           const wi     = parseNotifFull(s.last_notification_weekly, s.notification_weekly_received_ms);
           const wLevel = weeklyLevel || 'warn';
           const age    = s.notification_weekly_received_ms ? fmtTimeUntil(Date.now() - s.notification_weekly_received_ms) + ' ago' : 'recently';
           entries.push({
             type: wi?.limitType ?? 'WEEKLY',
-            pct: wi?.pct,
+            reportedPct: wi?.pct,
+            liveEstPct: null,
             level: wLevel,
             age,
             resetIn: wi?.timeUntil ? `resets in ${wi.timeUntil}` : null,
@@ -464,15 +477,23 @@ function updateTile(tile, s) {
           });
         }
 
-        msgs.innerHTML = entries.map(e => `
+        msgs.innerHTML = entries.map(e => {
+          const reportedStr = e.reportedPct != null ? e.reportedPct + '%' : (e.pct != null ? e.pct + '%' : '—');
+          const liveStr     = e.liveEstPct != null ? e.liveEstPct.toFixed(1) + '% est. now' : null;
+          return `
           <div class="ac-msg-entry">
             <div class="ac-msg-row">
               <span class="ac-msg-type ${e.level}">${e.type}</span>
-              <span class="ac-msg-pct ${e.level}">${e.pct != null ? e.pct + '%' : '—'} <span class="ac-msg-age">reported ${e.age}</span></span>
+              <span class="ac-msg-pct ${e.level}">${liveStr ?? reportedStr}</span>
+            </div>
+            <div class="ac-msg-subrow">
+              <span class="ac-msg-age">reported ${reportedStr} · ${e.age}</span>
+              ${liveStr ? `<span class="ac-msg-live-badge">LIVE EST</span>` : ''}
             </div>
             ${e.resetIn ? `<div class="ac-msg-reset">⏱ ${e.resetIn}</div>` : ''}
             ${e.upgrade ? `<div class="ac-msg-upgrade">⬡ /upgrade to keep using Claude Code</div>` : ''}
-          </div>`).join('');
+          </div>`;
+        }).join('');
       }
 
       const advisory = tile.querySelector("[data-field='ac-advisory']");

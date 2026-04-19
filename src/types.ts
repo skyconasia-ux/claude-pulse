@@ -39,9 +39,12 @@ export interface SessionState {
   last_notification?: string;
   notification_level?: "warn" | "critical";
   notification_received_ms?: number;
+  notification_tokens_at_report?: number;   // session tokens_total when this notification arrived
+  notification_pct_at_report?: number;      // % Claude Code reported at that moment
   last_notification_weekly?: string;
   notification_level_weekly?: "warn" | "critical";
   notification_weekly_received_ms?: number;
+  derived_account_limit?: number;           // estimated account token limit, derived from 2+ notifications
   project_first_seen_ms?: number;
   model_last?: string;                  // set by SessionStore.accumulateModel
   pid?: number;

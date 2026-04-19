@@ -152,9 +152,26 @@ export class SessionStore extends EventEmitter {
           this.state.notification_level_weekly = level;
           this.state.notification_weekly_received_ms = event.timestamp_ms;
         } else {
+          const prevPct    = this.state.notification_pct_at_report;
+          const prevTokens = this.state.notification_tokens_at_report;
+          const newPct     = pct;
+          const newTokens  = this.state.tokens_total;
+
+          // Derive account limit from two consecutive session notifications:
+          // if % went up by D% while tokens increased by DT, account_limit ≈ DT / (D/100)
+          if (prevPct !== undefined && prevTokens !== undefined) {
+            const deltaPct    = (newPct - prevPct) / 100;
+            const deltaTokens = newTokens - prevTokens;
+            if (deltaPct > 0 && deltaTokens > 0) {
+              this.state.derived_account_limit = Math.round(deltaTokens / deltaPct);
+            }
+          }
+
           this.state.last_notification = msg;
           this.state.notification_level = level;
           this.state.notification_received_ms = event.timestamp_ms;
+          this.state.notification_pct_at_report = newPct;
+          this.state.notification_tokens_at_report = newTokens;
         }
       }
       this.state.last_seen_ms = event.timestamp_ms;
