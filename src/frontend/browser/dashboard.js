@@ -282,8 +282,14 @@ function buildTile(sessionId) {
 function updateTile(tile, s) {
   const total    = s.tokens_total || 0;
   const weighted = s.weighted_tokens_total ?? total;
-  const pct      = Math.min(weighted / THRESHOLD * 100, 100);
+  const tokenPct = Math.min(weighted / THRESHOLD * 100, 100);
   const left     = Math.max(THRESHOLD - weighted, 0);
+
+  // Daily bar: use authoritative % from Claude Code notification if available;
+  // otherwise fall back to session token estimate against 1M cap.
+  const notifPct     = parseNotificationPct_js(s.last_notification);
+  const fromCLI      = notifPct > 0;
+  const pct          = fromCLI ? notifPct : tokenPct;
 
   animNum(tile, "tot-tokens", total,                fmtInt);
   animNum(tile, "tot-cost",   s.cost_usd || 0,      fmtCost2);
@@ -302,10 +308,12 @@ function updateTile(tile, s) {
   animNum(tile, "burn",  s.burn_rate_per_sec || 0, fmtWhole);
   animNum(tile, "tools", s.tool_calls_total  || 0, fmtWhole);
 
-  // Daily progress bar
+  // Daily progress bar — use CLI-reported % when available (authoritative), else session estimate
   const pctEl = tile.querySelector("[data-field='pct']");
   countUp(pctEl, pct, n => n.toFixed(0) + "%");
-  tile.querySelector("[data-field='bar']").style.width = pct.toFixed(1) + "%";
+  tile.querySelector("[data-field='bar']").style.width = Math.min(pct, 100).toFixed(1) + "%";
+  const capEl = tile.querySelector(".usage-bar-cap");
+  if (capEl) capEl.textContent = fromCLI ? "from Claude Code" : "est. cap: 1M";
 
   // Weekly usage section
   const weeklySection = tile.querySelector("[data-field='weekly-section']");
@@ -335,13 +343,14 @@ function updateTile(tile, s) {
   // Stale badge
   tile.querySelector("[data-field='stale']").style.display = s.is_stale ? "" : "none";
 
-  // Alert badge in header
+  // Alert badge in header — uses authoritative pct (CLI or token estimate)
   const alertBadge = tile.querySelector("[data-field='alert-badge']");
   if (alertBadge) {
-    if (pct >= 70) {
+    const showBadge = pct >= 70 || !!s.notification_level;
+    if (showBadge) {
       alertBadge.style.display = "";
       alertBadge.textContent = pct >= 100 ? "⚠ MAX" : `⚠ ${Math.round(pct)}%`;
-      alertBadge.className = "badge-alert" + (pct < 90 ? " warn-amber" : "");
+      alertBadge.className = "badge-alert" + (pct < 90 && s.notification_level !== 'critical' ? " warn-amber" : "");
     } else {
       alertBadge.style.display = "none";
     }
