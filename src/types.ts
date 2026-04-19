@@ -38,6 +38,8 @@ export interface SessionState {
   last_checkpoint_turn: number;
   last_notification?: string;
   notification_level?: "warn" | "critical";
+  last_notification_weekly?: string;
+  notification_level_weekly?: "warn" | "critical";
   project_first_seen_ms?: number;
   model_last?: string;                  // set by SessionStore.accumulateModel
   pid?: number;

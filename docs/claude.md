@@ -19,6 +19,7 @@ Last updated: 2026-04-19
 - Terminal dashboard: multi-session layout with keyboard navigation, model badge, weighted budget
 - Tile enhancements: elapsed time row + usage-limit warning banner per tile
 - Phase 3 browser dashboard: live usage % alert card, 5-band warning system (70/80/90/99/exceeded), header alert badge, model in graph tooltip
+- In-tile warning system: real CLI message text, daily/weekly bars, severity-driven blink (yellow=1s, red=0.4s), advisory text
 - Model-aware token tracking: per-model breakdown, weighted Sonnet-equivalent budget bar, correct cost rates
 - GitHub: https://github.com/skyconasia-ux/claude-pulse (public, MIT)
 - Port: 3001 (HTTP + WS on same port)
@@ -40,8 +41,8 @@ HooksAdapter / OtelAdapter / JournalWatcher → EventBus → SessionRegistry →
 - Abort: POST /abort/:sessionId → registry.markStopped()
 
 ## Pending
-- Smoke test: model rows (Opus/Sonnet/Haiku), project elapsed, chart zoom/drag, tile warnings
-- Phase 5: limit warnings, abort controls, production hardening
+- Smoke test: fire curl notification → verify in-tile warning shows real message text + blink color
+- Phase 5: abort controls, production hardening
 - v0.1 public release
 
 ## Key Decisions

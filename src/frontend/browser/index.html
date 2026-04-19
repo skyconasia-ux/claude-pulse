@@ -93,9 +93,16 @@
     .seg-out .seg-val { color: rgba(191,0,255,0.9); }
     .seg-left .seg-val { color: var(--dim); }
 
-    .progress-meta { display: flex; justify-content: space-between; font-size: 10px; color: var(--dim); margin-bottom: 5px; }
+    .usage-section { display: flex; flex-direction: column; gap: 4px; }
+    .usage-bar-header { display: flex; justify-content: space-between; align-items: baseline; font-size: 9px; }
+    .usage-bar-label { letter-spacing: 2px; color: var(--dim); font-weight: bold; }
+    .usage-bar-cap   { color: rgba(255,255,255,0.18); font-size: 8px; letter-spacing: 1px; }
+    .usage-bar-pct   { color: var(--cyan); letter-spacing: 1px; }
     .progress-track { background: #0d0d1a; border-radius: 4px; height: 10px; overflow: hidden; }
     .progress-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--green), var(--cyan), var(--purple)); box-shadow: 0 0 8px rgba(0,255,240,0.3); transition: width 0.5s ease; }
+    .weekly-track { height: 7px; }
+    .weekly-fill { background: linear-gradient(90deg, var(--amber), #ff6622); box-shadow: 0 0 6px rgba(255,170,0,0.25); }
+    .weekly-msg { font-size: 8px; color: rgba(255,170,0,0.65); line-height: 1.4; letter-spacing: 0.3px; padding-top: 2px; }
 
     .stats-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
     .stat { background: var(--bg3); border-radius: 6px; padding: 10px 12px; }
@@ -191,31 +198,32 @@
     .tile-time-row .ttr-val { color: rgba(0,255,240,0.6); }
     .tile-time-row .ttr-sep { color: rgba(255,255,255,0.12); }
 
+    @keyframes blink-slow { 0%,100%{opacity:1} 50%{opacity:0.5} }
+    @keyframes blink-fast { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
     .alert-card {
-      display: none; flex-direction: column; gap: 7px;
-      background: rgba(255,68,85,0.05); border: 1px solid rgba(255,68,85,0.4);
-      border-radius: 7px; padding: 11px 13px;
-      animation: pulse 0.8s ease-in-out infinite;
+      display: none; flex-direction: column; gap: 0;
+      border-radius: 7px; padding: 10px 13px;
     }
     .alert-card.open { display: flex; }
-    .alert-card.warn-amber {
-      background: rgba(255,170,0,0.05); border-color: rgba(255,170,0,0.4);
+    .alert-card.warn-yellow {
+      background: rgba(255,170,0,0.06); border: 1px solid rgba(255,170,0,0.45);
+      animation: blink-slow 1s ease-in-out infinite;
     }
-    .ac-header { display: flex; align-items: center; gap: 7px; }
-    .ac-icon   { font-size: 11px; }
-    .ac-title  { font-size: 8px; font-weight: bold; letter-spacing: 2px; color: var(--red); }
-    .alert-card.warn-amber .ac-title { color: var(--amber); }
-    .ac-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 16px; }
-    .ac-field  { display: flex; flex-direction: column; gap: 1px; }
-    .ac-lbl    { font-size: 7px; letter-spacing: 1.5px; color: var(--dim); }
-    .ac-val    { font-size: 13px; font-weight: bold; }
-    .ac-val.pct  { color: var(--red); }
-    .ac-val.time { color: var(--amber); }
-    .alert-card.warn-amber .ac-val.pct { color: var(--amber); }
-    .ac-upgrade {
-      font-size: 8px; color: rgba(255,170,0,0.75);
-      border-top: 1px solid rgba(255,68,85,0.15); padding-top: 6px; letter-spacing: 0.5px;
+    .alert-card.warn-red {
+      background: rgba(255,68,85,0.07); border: 1px solid rgba(255,68,85,0.55);
+      animation: blink-fast 0.4s ease-in-out infinite;
     }
+    .ac-messages { display: flex; flex-direction: column; gap: 0; }
+    .ac-msg-entry { display: flex; flex-direction: column; gap: 3px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .ac-msg-entry:last-child { border-bottom: none; }
+    .ac-msg-type { font-size: 7px; font-weight: bold; letter-spacing: 2px; }
+    .ac-msg-type.warn     { color: var(--amber); }
+    .ac-msg-type.critical { color: var(--red); }
+    .ac-msg-text { font-size: 9px; color: rgba(255,255,255,0.72); line-height: 1.45; letter-spacing: 0.2px; }
+    .ac-advisory { font-size: 9px; line-height: 1.4; margin-top: 7px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.07); letter-spacing: 0.2px; }
+    .ac-advisory.yellow { color: rgba(255,170,0,0.85); }
+    .ac-advisory.red    { color: var(--red); font-weight: bold; }
 
     .model-breakdown {
       display: flex; flex-direction: column; gap: 6px;

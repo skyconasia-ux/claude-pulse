@@ -204,13 +204,22 @@ function buildTile(sessionId) {
         </div>
       </div>
     </div>
-    <div>
-      <div class="progress-meta">
-        <span>0</span>
-        <span data-field="pct">0%</span>
-        <span>${fmt(THRESHOLD)}</span>
+    <div class="usage-section">
+      <div class="usage-bar-header">
+        <span class="usage-bar-label">DAILY USAGE</span>
+        <span class="usage-bar-cap">est. cap: 1M</span>
+        <span data-field="pct" class="usage-bar-pct">0%</span>
       </div>
       <div class="progress-track"><div class="progress-fill" data-field="bar" style="width:0%"></div></div>
+    </div>
+    <div class="usage-section weekly-usage-section" data-field="weekly-section" style="display:none">
+      <div class="usage-bar-header">
+        <span class="usage-bar-label">WEEKLY USAGE</span>
+        <span class="usage-bar-cap">cap unknown</span>
+        <span data-field="weekly-pct" class="usage-bar-pct">—</span>
+      </div>
+      <div class="progress-track weekly-track"><div class="progress-fill weekly-fill" data-field="weekly-bar" style="width:0%"></div></div>
+      <div class="weekly-msg" data-field="weekly-msg"></div>
     </div>
     <div class="model-breakdown" data-field="model-breakdown"></div>
     <div class="chart-wrap">
@@ -225,21 +234,8 @@ function buildTile(sessionId) {
       <div class="stat stat-tools"><div class="stat-label">TOOLS</div><div class="stat-value" data-field="tools">0</div></div>
     </div>
     <div class="alert-card" data-field="alert-card">
-      <div class="ac-header">
-        <span class="ac-icon">⚠</span>
-        <span class="ac-title">USAGE LIMIT WARNING</span>
-      </div>
-      <div class="ac-fields">
-        <div class="ac-field">
-          <div class="ac-lbl">USED</div>
-          <div class="ac-val pct" data-field="ac-pct">—</div>
-        </div>
-        <div class="ac-field" data-field="ac-reset-wrap" style="display:none">
-          <div class="ac-lbl">RESETS</div>
-          <div class="ac-val time" data-field="ac-reset">—</div>
-        </div>
-      </div>
-      <div class="ac-upgrade" data-field="ac-upgrade" style="display:none">⬡ /upgrade to keep using Claude Code</div>
+      <div class="ac-messages" data-field="ac-messages"></div>
+      <div class="ac-advisory" data-field="ac-advisory" style="display:none"></div>
     </div>
     <div class="tile-footer">
       <span class="alert-pill" data-field="alert">● GREEN</span>
@@ -306,10 +302,27 @@ function updateTile(tile, s) {
   animNum(tile, "burn",  s.burn_rate_per_sec || 0, fmtWhole);
   animNum(tile, "tools", s.tool_calls_total  || 0, fmtWhole);
 
-  // Progress bar — % text and fill width
+  // Daily progress bar
   const pctEl = tile.querySelector("[data-field='pct']");
-  countUp(pctEl, pct, n => n.toFixed(0) + "% used");
+  countUp(pctEl, pct, n => n.toFixed(0) + "%");
   tile.querySelector("[data-field='bar']").style.width = pct.toFixed(1) + "%";
+
+  // Weekly usage section
+  const weeklySection = tile.querySelector("[data-field='weekly-section']");
+  if (weeklySection) {
+    if (s.last_notification_weekly) {
+      weeklySection.style.display = "";
+      const weeklyPct = parseNotificationPct_js(s.last_notification_weekly);
+      const weeklyPctEl = tile.querySelector("[data-field='weekly-pct']");
+      if (weeklyPctEl) weeklyPctEl.textContent = weeklyPct > 0 ? weeklyPct + "%" : "—";
+      const weeklyBar = tile.querySelector("[data-field='weekly-bar']");
+      if (weeklyBar) weeklyBar.style.width = weeklyPct > 0 ? weeklyPct.toFixed(1) + "%" : "0%";
+      const weeklyMsg = tile.querySelector("[data-field='weekly-msg']");
+      if (weeklyMsg) weeklyMsg.textContent = s.last_notification_weekly;
+    } else {
+      weeklySection.style.display = "none";
+    }
+  }
 
   set(tile, "eta", fmtEta(s.eta_to_threshold_sec));
 
@@ -399,26 +412,58 @@ function updateTile(tile, s) {
     mbEl.style.display = "";
   }
 
-  // Alert card — triggers from token % OR notification_level (CLI-reported threshold)
+  // Alert card — in-tile primary warning, driven by CLI notifications + token %
   const alertCard = tile.querySelector("[data-field='alert-card']");
   if (alertCard) {
-    const notifLevel = s.notification_level;
-    const showAlert  = pct >= 70 || !!notifLevel;
+    const sessionLevel  = s.notification_level;
+    const weeklyLevel   = s.notification_level_weekly;
+    const hasSessionMsg = !!s.last_notification;
+    const hasWeeklyMsg  = !!s.last_notification_weekly;
+    const showAlert     = pct >= 70 || !!sessionLevel || !!weeklyLevel;
+
     if (showAlert) {
       alertCard.classList.add('open');
-      const isRed = pct >= 90 || notifLevel === 'critical';
-      alertCard.classList.toggle('warn-amber', !isRed);
-      const displayPct = pct >= 1 ? Math.round(pct) + '%' : (notifLevel ? '⚠' : '—');
-      set(tile, 'ac-pct', displayPct);
-      const { resetStr, hasUpgrade } = parseNotification(s.last_notification);
-      const resetWrap = tile.querySelector("[data-field='ac-reset-wrap']");
-      const resetEl   = tile.querySelector("[data-field='ac-reset']");
-      const upgradeEl = tile.querySelector("[data-field='ac-upgrade']");
-      if (resetWrap) resetWrap.style.display = resetStr ? "" : "none";
-      if (resetEl && resetStr) resetEl.textContent = resetStr;
-      if (upgradeEl) upgradeEl.style.display = hasUpgrade ? "" : "none";
+      // Severity: red if any source is critical or pct >= 90
+      const isRed = pct >= 90 || sessionLevel === 'critical' || weeklyLevel === 'critical';
+      alertCard.classList.remove('warn-yellow', 'warn-red', 'warn-amber');
+      alertCard.classList.add(isRed ? 'warn-red' : 'warn-yellow');
+
+      // Build message entries
+      const msgs = tile.querySelector("[data-field='ac-messages']");
+      if (msgs) {
+        const entries = [];
+        if (hasSessionMsg || pct >= 70) {
+          const rawMsg = s.last_notification || `You've used ${Math.round(pct)}% of your Claude Code usage limit.`;
+          const sLevel = sessionLevel || (pct >= 90 ? 'critical' : 'warn');
+          entries.push({ type: 'SESSION / DAILY', msg: rawMsg, level: sLevel });
+        }
+        if (hasWeeklyMsg) {
+          entries.push({ type: 'WEEKLY', msg: s.last_notification_weekly, level: weeklyLevel || 'warn' });
+        }
+        msgs.innerHTML = entries.map(e => `
+          <div class="ac-msg-entry">
+            <span class="ac-msg-type ${e.level}">${e.type}</span>
+            <span class="ac-msg-text">${e.msg}</span>
+          </div>`).join('');
+      }
+
+      // Advisory text
+      const advisory = tile.querySelector("[data-field='ac-advisory']");
+      if (advisory) {
+        if (isRed) {
+          advisory.style.display = "";
+          advisory.className = "ac-advisory red";
+          advisory.textContent = "Critical: near limit. Create a checkpoint and consider aborting before the session is blocked.";
+        } else {
+          advisory.style.display = "";
+          advisory.className = "ac-advisory yellow";
+          advisory.textContent = "Warning: usage is getting high. Create a checkpoint now.";
+        }
+      }
     } else {
-      alertCard.classList.remove('open', 'warn-amber');
+      alertCard.classList.remove('open', 'warn-yellow', 'warn-red', 'warn-amber');
+      const advisory = tile.querySelector("[data-field='ac-advisory']");
+      if (advisory) advisory.style.display = "none";
     }
   }
 }
@@ -768,6 +813,12 @@ function usageBand(pct) {
   if (pct >= 80)  return 'warn-80';
   if (pct >= 70)  return 'warn-70';
   return 'normal';
+}
+
+function parseNotificationPct_js(text) {
+  if (!text) return 0;
+  const m = text.match(/(\d+)\s*%/);
+  return m ? parseInt(m[1], 10) : 0;
 }
 
 function parseNotification(text) {

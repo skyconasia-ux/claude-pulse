@@ -81,27 +81,34 @@
 
 ---
 
+### 2026-04-19 — Phase 4 + Smoke Test Bug Fixes (HISTORY)
+- Phase 4 complete: model detection, project elapsed time, terminal zoom/pan, chart model dots
+- Smoke test fixes: JSONL model extraction, duplicate events, Stop hook PS fix, CLOSED→IDLE fix
+- 3 permanent model rows, warning sync with CLI notification_level, chart zoom/drag
+- 80/80 tests passing
+
+---
+
 ## CURRENT CHECKPOINT
 
-### 2026-04-19 — Phase 4 + Smoke Test Bug Fixes
+### 2026-04-19 — In-Tile Warning System + Daily/Weekly Usage Bars
 
-**Objective:** Fix real-world bugs found during smoke test; ship production-ready tile layout.
+**Objective:** Redesign tile warning to show real Claude Code notification text; add weekly usage bar; severity-driven blinking.
 
 **Completed work:**
-- Phase 4: model persistence (journal model extraction), independent project elapsed time, terminal zoom/pan, model-colored chart dots
-- Model fix: JournalWatcher now reads `message.model` from assistant JSONL lines → model no longer "unknown"
-- Duplicate event fix: stale file states evicted when new JSONL appears in same project dir
-- Stop hook PS fix: added `"shell":"powershell"` → no more PowerShell parse errors on Stop
-- CLOSED→IDLE fix: `setStale(true)` now sets `lifecycle=waiting` not `closed` — session only closes on explicit session_end
-- 3 permanent model rows: Opus/Sonnet/Haiku always visible in tile with ACTIVE/IDLE status; UNKNOWN never shown
-- Warning sync: alert card triggers from `notification_level` (CLI-reported) not just token %, warning inside tile
-- Browser chart zoom/pan: mouse-wheel zoom (up=in, down=out, 1–10×), left-drag pan; tooltip viewport-aware
+- Alert card embedded in tile: shows actual raw CLI message text (not just %)
+- Session vs weekly notification classified in SessionStore (`last_notification_weekly`, `notification_level_weekly`)
+- Severity: yellow = slow blink (1s) + advisory; red = fast blink (0.4s) + strong advisory
+- Daily bar labelled "DAILY USAGE (est. cap: 1M)"; weekly bar only shown when CLI sends weekly notification
+- Weekly bar: amber gradient, shows raw message, pct extracted if available, no fabricated cap
+- Multiple simultaneous messages (session + weekly) stacked in one alert card
+- Primary warning = in-tile; banner remains secondary checkpoint signal
 
-**Current progress:** All fixes implemented; tsc clean.
+**Current progress:** tsc clean, 80/80 tests.
 
-**Next step:** `npm run dev` → smoke test all 4 checklist items.
+**Next step:** `npm run dev` → test notification curl → verify in-tile warning shows real message text.
 
 **Pending tasks:**
-- Run smoke test: model shows Sonnet/Opus/Haiku, project elapsed ≠ session, chart zoom/drag, warnings in tile
-- Phase 5: limit warnings, abort controls, production hardening
+- Smoke test: fire curl notification → check tile shows real message + correct blink color
+- Phase 5: abort controls, production hardening
 - v0.1 public release
