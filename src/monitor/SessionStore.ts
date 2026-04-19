@@ -204,7 +204,9 @@ export class SessionStore extends EventEmitter {
 
   setStale(stale: boolean): void {
     this.state.is_stale = stale;
-    if (stale) this.state.lifecycle = "closed";
+    // Inactivity timeout means no recent events — session may still be alive (waiting for input).
+    // Only an explicit session_end event sets lifecycle=closed.
+    if (stale) this.state.lifecycle = "waiting";
   }
 
   setProjectFirstSeen(ms: number): void {

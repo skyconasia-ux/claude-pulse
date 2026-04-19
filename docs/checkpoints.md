@@ -83,20 +83,25 @@
 
 ## CURRENT CHECKPOINT
 
-### 2026-04-19 — Real-World Smoke Test Readiness
+### 2026-04-19 — Phase 4 + Smoke Test Bug Fixes
 
-**Objective:** Validate Phase 3 features against live Claude Code sessions.
+**Objective:** Fix real-world bugs found during smoke test; ship production-ready tile layout.
 
 **Completed work:**
-- Phase 3 fully shipped: alert card, 5-band system, header badge, model tooltip
-- Smoke test checklist defined (single session, multi-session, browser relaunch, band verification)
-- All docs, CLAUDE.md, checkpoints updated; pushed to GitHub
-- 80/80 tests; tsc clean
+- Phase 4: model persistence (journal model extraction), independent project elapsed time, terminal zoom/pan, model-colored chart dots
+- Model fix: JournalWatcher now reads `message.model` from assistant JSONL lines → model no longer "unknown"
+- Duplicate event fix: stale file states evicted when new JSONL appears in same project dir
+- Stop hook PS fix: added `"shell":"powershell"` → no more PowerShell parse errors on Stop
+- CLOSED→IDLE fix: `setStale(true)` now sets `lifecycle=waiting` not `closed` — session only closes on explicit session_end
+- 3 permanent model rows: Opus/Sonnet/Haiku always visible in tile with ACTIVE/IDLE status; UNKNOWN never shown
+- Warning sync: alert card triggers from `notification_level` (CLI-reported) not just token %, warning inside tile
+- Browser chart zoom/pan: mouse-wheel zoom (up=in, down=out, 1–10×), left-drag pan; tooltip viewport-aware
 
-**Current progress:** Implementation 100% — awaiting real-world validation.
+**Current progress:** All fixes implemented; tsc clean.
 
-**Next step:** Run smoke test checklist against live session(s); confirm all bands, tooltip model line, and alert card RESETS/upgrade parsing work end-to-end.
+**Next step:** `npm run dev` → smoke test all 4 checklist items.
 
 **Pending tasks:**
-- Execute smoke test checklist (A–E)
-- File any bugs found during real-world testing
+- Run smoke test: model shows Sonnet/Opus/Haiku, project elapsed ≠ session, chart zoom/drag, warnings in tile
+- Phase 5: limit warnings, abort controls, production hardening
+- v0.1 public release

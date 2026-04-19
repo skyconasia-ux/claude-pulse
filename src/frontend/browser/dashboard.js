@@ -351,6 +351,7 @@ function updateTile(tile, s) {
     if (!canvas._tooltipWired) {
       canvas._tooltipWired = true;
       wireChartTooltip(canvas, s.session_id);
+      wireChartInteractions(canvas);
     }
     canvas._sessionId = s.session_id;
   }
@@ -362,32 +363,53 @@ function updateTile(tile, s) {
   if (s.started_at) tile.dataset.startedAt = s.started_at;
   if (s.project_first_seen_ms) tile.dataset.projectFirstSeen = s.project_first_seen_ms;
 
-  // Model breakdown
+  // Model breakdown — always show Opus / Sonnet / Haiku rows, never UNKNOWN
   const mbEl = tile.querySelector("[data-field='model-breakdown']");
-  if (mbEl && s.models && Object.keys(s.models).length > 0) {
-    mbEl.innerHTML = Object.entries(s.models).map(([id, stats]) => `
-      <div class="model-row">
-        <span class="model-name">
-          <span class="model-badge ${modelBadgeClass(id)}">${shortModelName(id)}</span>
-          ${id === s.model_last ? ' <span style="color:#00ff88;font-size:8px">&#9679; ACTIVE</span>' : ''}
-        </span>
-        <span class="model-tokens-in">IN ${fmtInt(stats.tokens_in)}</span>
-        <span class="model-tokens-out">OUT ${fmtInt(stats.tokens_out)}</span>
-        <span class="model-cost">${fmtCost4(stats.cost_usd)}</span>
-      </div>
-    `).join("");
+  if (mbEl) {
+    const activeFamily = modelFamily(s.model_last);
+    // Aggregate s.models into the 3 known families
+    const fam = { opus: null, sonnet: null, haiku: null };
+    for (const [id, stats] of Object.entries(s.models || {})) {
+      const f = modelFamily(id);
+      if (!f) continue;
+      if (!fam[f]) fam[f] = { tokens_in: 0, tokens_out: 0, cost_usd: 0 };
+      fam[f].tokens_in  += stats.tokens_in;
+      fam[f].tokens_out += stats.tokens_out;
+      fam[f].cost_usd   += stats.cost_usd;
+    }
+    mbEl.innerHTML = [
+      { key: 'opus',   label: 'OPUS'   },
+      { key: 'sonnet', label: 'SONNET' },
+      { key: 'haiku',  label: 'HAIKU'  },
+    ].map(({ key, label }) => {
+      const isActive = activeFamily === key;
+      const stats    = fam[key];
+      const statusCls = isActive ? 'model-status-active' : 'model-status-idle';
+      const statsHtml = stats
+        ? `<span class="model-tokens-in">IN ${fmtInt(stats.tokens_in)}</span>
+           <span class="model-tokens-out">OUT ${fmtInt(stats.tokens_out)}</span>
+           <span class="model-cost">${fmtCost4(stats.cost_usd)}</span>`
+        : `<span class="model-no-data">—</span>`;
+      return `<div class="model-row">
+        <span class="model-badge model-badge-${key}">${label}</span>
+        <span class="model-status ${statusCls}">${isActive ? 'ACTIVE' : 'IDLE'}</span>
+        ${statsHtml}
+      </div>`;
+    }).join("");
     mbEl.style.display = "";
-  } else if (mbEl) {
-    mbEl.style.display = "none";
   }
 
-  // Alert card — live usage % + parsed reset time + upgrade prompt
+  // Alert card — triggers from token % OR notification_level (CLI-reported threshold)
   const alertCard = tile.querySelector("[data-field='alert-card']");
   if (alertCard) {
-    if (pct >= 70) {
+    const notifLevel = s.notification_level;
+    const showAlert  = pct >= 70 || !!notifLevel;
+    if (showAlert) {
       alertCard.classList.add('open');
-      alertCard.classList.toggle('warn-amber', pct < 90);
-      set(tile, 'ac-pct', Math.round(pct) + '%');
+      const isRed = pct >= 90 || notifLevel === 'critical';
+      alertCard.classList.toggle('warn-amber', !isRed);
+      const displayPct = pct >= 1 ? Math.round(pct) + '%' : (notifLevel ? '⚠' : '—');
+      set(tile, 'ac-pct', displayPct);
       const { resetStr, hasUpgrade } = parseNotification(s.last_notification);
       const resetWrap = tile.querySelector("[data-field='ac-reset-wrap']");
       const resetEl   = tile.querySelector("[data-field='ac-reset']");
@@ -450,6 +472,13 @@ function modelBadgeClass(modelId) {
   if (modelId.includes("opus"))   return "model-badge-opus";
   if (modelId.includes("haiku"))  return "model-badge-haiku";
   return "model-badge-sonnet";
+}
+
+function modelFamily(modelId) {
+  if (!modelId || modelId === "unknown") return null;
+  if (modelId.includes("opus"))   return "opus";
+  if (modelId.includes("haiku"))  return "haiku";
+  return "sonnet"; // default — any other claude- string maps to sonnet
 }
 
 function shortModelName(modelId) {
@@ -565,15 +594,23 @@ function wireChartTooltip(canvas, sessionId) {
     const hist = chartHistory[sid] || [];
     if (hist.length < 2) { tooltip.style.display = "none"; return; }
 
+    // Respect zoom/pan viewport
+    const zoom    = canvas._zoom   || 1;
+    const panPct  = canvas._panPct || 0;
+    const viewLen = Math.max(2, Math.round(hist.length / zoom));
+    const maxStart = Math.max(0, hist.length - viewLen);
+    const startIdx = Math.min(maxStart, Math.round(panPct * maxStart));
+    const view = hist.slice(startIdx, startIdx + viewLen);
+
     const rect = canvas.getBoundingClientRect();
     const xRel = e.clientX - rect.left;
     const pad  = 4;
     const cW   = rect.width - pad * 2;
-    const idx  = Math.round(((xRel - pad) / cW) * (hist.length - 1));
-    const i    = Math.max(0, Math.min(hist.length - 1, idx));
-    const pt   = hist[i];
+    const idx  = Math.round(((xRel - pad) / cW) * (view.length - 1));
+    const i    = Math.max(0, Math.min(view.length - 1, idx));
+    const pt   = view[i];
 
-    const hasTokens = hist.some(p => p.tokens > 0);
+    const hasTokens = view.some(p => p.tokens > 0);
     const delta = hasTokens ? pt.tokensDelta : pt.toolsDelta;
     const label = hasTokens
       ? (delta > 0 ? "+" : "") + Number(delta).toLocaleString() + " tokens burned"
@@ -589,6 +626,46 @@ function wireChartTooltip(canvas, sessionId) {
   });
 
   canvas.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
+}
+
+// ── Chart zoom + drag interactions ───────────────────────
+function wireChartInteractions(canvas) {
+  // Per-canvas view state
+  canvas._zoom   = 1;    // 1 = full history, >1 = zoomed in
+  canvas._panPct = 0;    // 0 = rightmost (latest), 1 = leftmost (oldest)
+  canvas._drag   = null; // { startX, startPanPct }
+
+  canvas.style.cursor = "grab";
+
+  canvas.addEventListener("wheel", e => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    canvas._zoom = Math.max(1, Math.min(10, canvas._zoom * delta));
+    drawChart(canvas, canvas._sessionId);
+  }, { passive: false });
+
+  canvas.addEventListener("mousedown", e => {
+    if (e.button !== 0) return;
+    canvas._drag = { startX: e.clientX, startPanPct: canvas._panPct };
+    canvas.style.cursor = "grabbing";
+  });
+
+  canvas.addEventListener("mousemove", e => {
+    if (!canvas._drag) return;
+    const hist = chartHistory[canvas._sessionId] || [];
+    if (hist.length < 2) return;
+    const viewLen = Math.max(2, Math.round(hist.length / canvas._zoom));
+    const dx = e.clientX - canvas._drag.startX;
+    const rect = canvas.getBoundingClientRect();
+    const dPct = -(dx / rect.width) * (viewLen / hist.length);
+    const maxPan = 1 - 1 / canvas._zoom;
+    canvas._panPct = Math.max(0, Math.min(maxPan, canvas._drag.startPanPct + dPct));
+    drawChart(canvas, canvas._sessionId);
+  });
+
+  window.addEventListener("mouseup", () => {
+    if (canvas._drag) { canvas._drag = null; canvas.style.cursor = "grab"; }
+  });
 }
 
 // ── Area chart ───────────────────────────────────────────
@@ -615,15 +692,23 @@ function drawChart(canvas, sessionId) {
     return;
   }
 
+  // Apply zoom + pan viewport
+  const zoom    = canvas._zoom   || 1;
+  const panPct  = canvas._panPct || 0;
+  const viewLen = Math.max(2, Math.round(hist.length / zoom));
+  const maxStart = Math.max(0, hist.length - viewLen);
+  const startIdx = Math.min(maxStart, Math.round(panPct * maxStart));
+  const view    = hist.slice(startIdx, startIdx + viewLen);
+
   // Use token data when available (OTEL), otherwise tool call count as activity proxy
-  const hasTokens = hist.some(p => p.tokens > 0);
-  const vals = hist.map(p => hasTokens ? p.tokens : p.toolCalls);
+  const hasTokens = view.some(p => p.tokens > 0);
+  const vals = view.map(p => hasTokens ? p.tokens : p.toolCalls);
   const maxVal = Math.max(...vals, 1);
   const pad = { t: 8, b: 8, l: 4, r: 4 };
   const cW = W - pad.l - pad.r;
   const cH = H - pad.t - pad.b;
 
-  const px = (i) => pad.l + (i / (hist.length - 1)) * cW;
+  const px = (i) => pad.l + (i / (view.length - 1)) * cW;
   const py = (v) => pad.t + cH - (v / maxVal) * cH;
 
   // Gradient fill
@@ -634,8 +719,8 @@ function drawChart(canvas, sessionId) {
 
   ctx.beginPath();
   ctx.moveTo(px(0), py(vals[0]));
-  for (let i = 1; i < hist.length; i++) ctx.lineTo(px(i), py(vals[i]));
-  ctx.lineTo(px(hist.length - 1), H - pad.b);
+  for (let i = 1; i < view.length; i++) ctx.lineTo(px(i), py(vals[i]));
+  ctx.lineTo(px(view.length - 1), H - pad.b);
   ctx.lineTo(px(0), H - pad.b);
   ctx.closePath();
   ctx.fillStyle = grad;
@@ -644,7 +729,7 @@ function drawChart(canvas, sessionId) {
   // Line
   ctx.beginPath();
   ctx.moveTo(px(0), py(vals[0]));
-  for (let i = 1; i < hist.length; i++) ctx.lineTo(px(i), py(vals[i]));
+  for (let i = 1; i < view.length; i++) ctx.lineTo(px(i), py(vals[i]));
   ctx.strokeStyle = "#00fff0";
   ctx.lineWidth = 1.5;
   ctx.shadowColor = "#00fff0";
@@ -653,9 +738,9 @@ function drawChart(canvas, sessionId) {
   ctx.shadowBlur = 0;
 
   // Dots — colored by model (opus=purple, haiku=green, sonnet=cyan)
-  for (let i = 0; i < hist.length; i++) {
-    const isLast = i === hist.length - 1;
-    const m = hist[i].model || "";
+  for (let i = 0; i < view.length; i++) {
+    const isLast = i === view.length - 1;
+    const m = view[i].model || "";
     const solid = m.includes("opus") ? "#bf00ff" : m.includes("haiku") ? "#00ff88" : "#00fff0";
     const dim   = m.includes("opus") ? "rgba(191,0,255,0.55)" : m.includes("haiku") ? "rgba(0,255,136,0.55)" : "rgba(0,255,240,0.55)";
     ctx.beginPath();
@@ -665,6 +750,13 @@ function drawChart(canvas, sessionId) {
     ctx.shadowBlur = isLast ? 6 : 0;
     ctx.fill();
     ctx.shadowBlur = 0;
+  }
+
+  // Zoom indicator
+  if (zoom > 1.05) {
+    ctx.fillStyle = "rgba(0,255,240,0.5)";
+    ctx.font = "8px monospace";
+    ctx.fillText(`${zoom.toFixed(1)}×`, W - 26, pad.t + 9);
   }
 }
 

@@ -222,7 +222,7 @@
       border-top: 1px solid rgba(0,255,240,0.07); padding-top: 8px;
     }
     .model-row {
-      display: grid; grid-template-columns: 1fr auto auto auto;
+      display: grid; grid-template-columns: auto auto 1fr auto auto auto;
       gap: 8px; align-items: center; font-size: 10px;
     }
     .model-name { color: var(--cyan); letter-spacing: 1px; font-size: 9px; }
@@ -233,9 +233,13 @@
     .model-badge-opus   { background: rgba(191,0,255,0.15); border: 1px solid rgba(191,0,255,0.4); color: var(--purple); }
     .model-badge-sonnet { background: rgba(0,255,240,0.10); border: 1px solid rgba(0,255,240,0.35); color: var(--cyan); }
     .model-badge-haiku  { background: rgba(0,255,136,0.10); border: 1px solid rgba(0,255,136,0.35); color: #00ff88; }
-    .model-tokens-in  { color: rgba(0,255,240,0.75); }
-    .model-tokens-out { color: rgba(191,0,255,0.85); }
-    .model-cost       { color: var(--purple); }
+    .model-tokens-in  { color: rgba(0,255,240,0.75); font-size: 9px; }
+    .model-tokens-out { color: rgba(191,0,255,0.85); font-size: 9px; }
+    .model-cost       { color: var(--purple); font-size: 9px; }
+    .model-status { font-size: 8px; letter-spacing: 1.5px; padding: 1px 5px; border-radius: 3px; font-weight: bold; }
+    .model-status-active { background: rgba(0,255,136,0.12); border: 1px solid rgba(0,255,136,0.4); color: #00ff88; }
+    .model-status-idle   { background: rgba(68,68,102,0.2);  border: 1px solid rgba(68,68,102,0.35); color: var(--gray); }
+    .model-no-data { color: var(--gray); font-size: 9px; }
 
     .chart-wrap { position: relative; }
     .chart-label { font-size: 9px; letter-spacing: 2px; color: var(--dim); margin-bottom: 5px; }
