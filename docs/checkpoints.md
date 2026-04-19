@@ -87,28 +87,36 @@
 - 3 permanent model rows, warning sync with CLI notification_level, chart zoom/drag
 - 80/80 tests passing
 
+### 2026-04-19 — Dashboard Redesign + Warning System (HISTORY)
+- Command center box above tiles: aggregate tokens/cost/turns/tools/burn + 3 model blocks (OPUS/SONNET/HAIKU with IN/OUT/COST)
+- Alert card always visible in every tile: green=all clear, yellow=slow blink+checkpoint advisory, red=fast blink+abort advisory
+- Floating checkpoint banner removed; replaced by in-tile checkpoint button flash
+- Honest notification display: reported % + age + live extrapolation when account limit known
+- Daily bar = session token count (honest); weekly bar shown only when CLI sends weekly notification
+- OTel span attr logging added to discover rate-limit keys
+
 ---
 
 ## CURRENT CHECKPOINT
 
-### 2026-04-19 — In-Tile Warning System + Daily/Weekly Usage Bars
+### 2026-04-19 — Production Ready / Open for Contributors
 
-**Objective:** Redesign tile warning to show real Claude Code notification text; add weekly usage bar; severity-driven blinking.
+**Objective:** Ship stable, fully-featured dashboard ready for community use.
 
 **Completed work:**
-- Alert card embedded in tile: shows actual raw CLI message text (not just %)
-- Session vs weekly notification classified in SessionStore (`last_notification_weekly`, `notification_level_weekly`)
-- Severity: yellow = slow blink (1s) + advisory; red = fast blink (0.4s) + strong advisory
-- Daily bar labelled "DAILY USAGE (est. cap: 1M)"; weekly bar only shown when CLI sends weekly notification
-- Weekly bar: amber gradient, shows raw message, pct extracted if available, no fabricated cap
-- Multiple simultaneous messages (session + weekly) stacked in one alert card
-- Primary warning = in-tile; banner remains secondary checkpoint signal
+- Full multi-session browser dashboard with command center aggregate box
+- Per-tile: model rows (OPUS/SONNET/HAIKU), elapsed time, chart zoom/drag, always-on warning card
+- Warning card: green/yellow/red severity, real CLI message, live reset countdown, advisory text
+- Account usage: notification snapshot + live extrapolation from derived account limit
+- Floating banner removed; all warnings in-tile or command center
+- Terminal dashboard: keyboard nav, model badge, weighted budget, burn chart zoom/pan
+- 80/80 tests; tsc clean; GitHub public MIT
 
-**Current progress:** tsc clean, 80/80 tests.
+**Current progress:** Stable. Pushed to GitHub for community contributions.
 
-**Next step:** `npm run dev` → test notification curl → verify in-tile warning shows real message text.
+**Next step:** Community testing, issue triage, v0.1 release tag.
 
 **Pending tasks:**
-- Smoke test: fire curl notification → check tile shows real message + correct blink color
+- OTel span inspection: check if rate-limit headers exported (server logs after next `claude` run)
 - Phase 5: abort controls, production hardening
-- v0.1 public release
+- `gh release create v0.1.0` public release

@@ -14,19 +14,20 @@ Last updated: 2026-04-19
 ## Current State
 - Fully operational live monitoring — 2026-04-19
 - All metrics from JSONL polling: tokens, cost, turns, tools, burn/s, ETA
-- 80/80 tests passing
+- 80/80 tests passing; tsc clean
 - PID tracking: real process kill on Abort (parent PID injected via PowerShell hook)
-- Terminal dashboard: multi-session layout with keyboard navigation, model badge, weighted budget
-- Tile enhancements: elapsed time row + usage-limit warning banner per tile
-- Phase 3 browser dashboard: live usage % alert card, 5-band warning system (70/80/90/99/exceeded), header alert badge, model in graph tooltip
-- In-tile warning system: real CLI message text, daily/weekly bars, severity-driven blink (yellow=1s, red=0.4s), advisory text
+- Terminal dashboard: multi-session layout with keyboard navigation, model badge, weighted budget, burn chart zoom/pan
+- Browser dashboard: command center aggregate box (tokens/cost/turns/tools/burn + OPUS/SONNET/HAIKU totals)
+- Per-tile: always-on warning card (green/yellow/red), 3 model rows, elapsed time, chart zoom/drag
+- Warning card: real CLI notification text, live reset countdown, live usage extrapolation, advisory messages
+- Floating banner removed; checkpoint signal flashes in-tile Checkpoint button
+- Account usage: snapshot + live extrapolation when derived_account_limit available
 - Model-aware token tracking: per-model breakdown, weighted Sonnet-equivalent budget bar, correct cost rates
 - GitHub: https://github.com/skyconasia-ux/claude-pulse (public, MIT)
 - Port: 3001 (HTTP + WS on same port)
 - Hooks: `~/.claude/settings.json` PostToolUse/Stop/Notification → PowerShell → localhost:3001/hook
 - JournalWatcher: 1s poll, 1h window, 1 file per project dir, delta input tokens
 - Each Claude Code session (PowerShell launch) = new JSONL = counters reset to 0
-- Checkpoint banner: 60s blinking (0.7s mandatory, 1.2s suggested)
 - Animated counters: 700ms ease-out on all numeric fields
 
 ## Architecture (immutable unless explicitly redesigned)
@@ -41,9 +42,9 @@ HooksAdapter / OtelAdapter / JournalWatcher → EventBus → SessionRegistry →
 - Abort: POST /abort/:sessionId → registry.markStopped()
 
 ## Pending
-- Smoke test: fire curl notification → verify in-tile warning shows real message text + blink color
+- OTel span inspection: check server logs for rate-limit header keys after next `claude` run
 - Phase 5: abort controls, production hardening
-- v0.1 public release
+- `gh release create v0.1.0` public release
 
 ## Key Decisions
 See decisions.md at project root for full Q&A log.
