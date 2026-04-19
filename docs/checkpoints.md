@@ -97,13 +97,8 @@
 
 ---
 
-## CURRENT CHECKPOINT
+### 2026-04-19 — Production Ready / Open for Contributors (HISTORY)
 
-### 2026-04-19 — Production Ready / Open for Contributors
-
-**Objective:** Ship stable, fully-featured dashboard ready for community use.
-
-**Completed work:**
 - Full multi-session browser dashboard with command center aggregate box
 - Per-tile: model rows (OPUS/SONNET/HAIKU), elapsed time, chart zoom/drag, always-on warning card
 - Warning card: green/yellow/red severity, real CLI message, live reset countdown, advisory text
@@ -112,7 +107,21 @@
 - Terminal dashboard: keyboard nav, model badge, weighted budget, burn chart zoom/pan
 - 80/80 tests; tsc clean; GitHub public MIT
 
-**Current progress:** Stable. Pushed to GitHub for community contributions.
+---
+
+## CURRENT CHECKPOINT
+
+### 2026-04-19 — Session Lifecycle + Pre-Release Security
+
+**Objective:** Closed tiles auto-remove; repo safe for public community use.
+
+**Completed work:**
+- `session_removed` WS message: server removes closed/stopped sessions after 30s delay
+- Browser: tile fades out (opacity+scale transition) then removed from DOM; chart history cleared
+- `SessionRegistry.scheduleRemoval()`: fires on `session_end` event and `markStopped()`; deduped; cleared on `destroy()`
+- Security: removed personal paths (`C:/Users/quick/`) from plan/spec docs; removed username from test fixtures and code comments
+
+**Current progress:** Pushed to GitHub.
 
 **Next step:** Community testing, issue triage, v0.1 release tag.
 
