@@ -21,6 +21,7 @@ function extractProjectName(cwd?: string): string {
 interface ParsedLine {
   sessionId: string;
   projectName: string;
+  model?: string;
   inputAbsolute: number;
   output: number;
   cost: number;
@@ -42,6 +43,7 @@ function parseUsageLine(line: string): ParsedLine | null {
   if (inputAbsolute === 0 && output === 0) return null;
 
   const cost = inputAbsolute * COST_PER_INPUT + output * COST_PER_OUTPUT;
+  const model = (msg?.model as string | undefined) || undefined;
 
   // Count tool_use blocks inside this assistant message content
   const content = (msg?.content as Array<Record<string, unknown>> | undefined) ?? [];
@@ -50,7 +52,7 @@ function parseUsageLine(line: string): ParsedLine | null {
   return {
     sessionId: (obj.sessionId as string) ?? "",
     projectName: extractProjectName(obj.cwd as string | undefined),
-    inputAbsolute, output, cost, toolCalls,
+    model, inputAbsolute, output, cost, toolCalls,
   };
 }
 
@@ -129,7 +131,7 @@ export class JournalWatcher {
     // - totalCost    = sum of all per-turn costs
     const sessions: Record<string, {
       latestInput: number; totalOutput: number; totalCost: number;
-      totalTools: number; turns: number; projectName: string;
+      totalTools: number; turns: number; projectName: string; lastModel?: string;
     }> = {};
 
     for (const line of content.split("\n")) {
@@ -144,13 +146,14 @@ export class JournalWatcher {
       sessions[p.sessionId].totalCost += p.cost;
       sessions[p.sessionId].totalTools += p.toolCalls;
       sessions[p.sessionId].turns += 1; // each assistant line = one completed turn
+      if (p.model) sessions[p.sessionId].lastModel = p.model;
     }
 
     let prevInput = 0;
     for (const [sessionId, s] of Object.entries(sessions)) {
       if (s.latestInput === 0 && s.totalOutput === 0) continue;
       prevInput = s.latestInput;
-      this.emitEvent(sessionId, s.projectName, s.latestInput, s.totalOutput, s.totalCost, {
+      this.emitEvent(sessionId, s.projectName, s.latestInput, s.totalOutput, s.totalCost, s.lastModel, {
         bootstrapTurns: s.turns,
         toolsDelta: s.totalTools,
       });
@@ -223,19 +226,21 @@ export class JournalWatcher {
       const inputDelta = Math.max(0, p.inputAbsolute - state.prevInputAbsolute);
       state.prevInputAbsolute = p.inputAbsolute;
 
-      this.emitEvent(sessionId, p.projectName, inputDelta, p.output, p.cost, { toolsDelta: p.toolCalls });
-      log.info("live token event", { session: sessionId.slice(0, 8), inputDelta, output: p.output, tools: p.toolCalls });
+      this.emitEvent(sessionId, p.projectName, inputDelta, p.output, p.cost, p.model, { toolsDelta: p.toolCalls });
+      log.info("live token event", { session: sessionId.slice(0, 8), inputDelta, output: p.output, tools: p.toolCalls, model: p.model });
     }
   }
 
   private emitEvent(
     sessionId: string, projectName: string,
     input: number, output: number, cost: number,
+    model: string | undefined,
     meta: Record<string, unknown> = {},
   ): void {
     const event: NormalizedEvent = {
       session_id: sessionId,
       project_name: projectName,
+      model,
       source: "journal",
       type: "token_delta",
       tokens: { input, output },
