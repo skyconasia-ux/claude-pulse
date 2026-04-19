@@ -429,7 +429,7 @@ Then confirm via WS or GET /api/state that `pid: 99999` appears on the session.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add C:/Users/quick/.claude/settings.json
+git add ~/.claude/settings.json
 git commit -m "feat: inject parent PID into hook payload via PowerShell"
 ```
 

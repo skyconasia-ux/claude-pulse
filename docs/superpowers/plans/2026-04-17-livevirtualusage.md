@@ -46,7 +46,7 @@
 - [ ] **Step 1: Create directory structure**
 
 ```bash
-cd "C:/Users/quick/LiveVisualUsage"
+cd "<your-path>/LiveVisualUsage"
 mkdir -p src/monitor src/wrapper src/server src/frontend/browser src/frontend/terminal
 mkdir -p logs data tests/monitor tests/server tests/wrapper
 mkdir -p docs/architecture docs system/prompts system/tasks system/pending system/helpers
@@ -56,7 +56,7 @@ mkdir -p tools skills/superpowers skills/brainstorm
 - [ ] **Step 2: Init package.json**
 
 ```bash
-cd "C:/Users/quick/LiveVisualUsage"
+cd "<your-path>/LiveVisualUsage"
 npm init -y
 ```
 

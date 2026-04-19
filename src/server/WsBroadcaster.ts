@@ -67,6 +67,12 @@ export class WsBroadcaster {
     this.broadcast(msg);
   }
 
+  broadcastSessionRemoved(sessionId: string): void {
+    this.sessions = this.sessions.filter(s => s.session_id !== sessionId);
+    const msg: WsMessage = { type: "session_removed", session_id: sessionId };
+    this.broadcast(msg);
+  }
+
   private broadcast(msg: WsMessage): void {
     const payload = JSON.stringify(msg);
     for (const client of this.wss.clients) {

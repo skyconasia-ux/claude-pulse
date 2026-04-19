@@ -7,17 +7,20 @@ const log = makeLogger("SessionRegistry");
 
 const STALE_WARN_MS = 120_000;
 const STALE_CLOSE_MS = 600_000;
+const CLOSED_REMOVE_DELAY_MS = 30_000;
 
 export class SessionRegistry {
   private sessions = new Map<string, SessionStore>();
   private projectFirstSeen = new Map<string, number>();
   private staleTimer: ReturnType<typeof setInterval>;
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
+  private removeTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(
     private cfg: AppConfig,
     private onUpdate: (state: SessionState) => void,
     private onCheckpoint: (severity: "suggested" | "mandatory", state: SessionState) => void,
+    private onRemove?: (sessionId: string) => void,
   ) {
     this.staleTimer = setInterval(() => this.checkStale(), 15_000);
     this.loadPersisted();
@@ -80,6 +83,10 @@ export class SessionRegistry {
     }
 
     this.sessions.get(id)!.apply(event);
+    const newState = this.sessions.get(id)!.getState();
+    if (newState.lifecycle === "closed" || newState.lifecycle === "stopped") {
+      this.scheduleRemoval(id);
+    }
   }
 
   getAllStates(): SessionState[] {
@@ -105,12 +112,27 @@ export class SessionRegistry {
     store.setLifecycle("stopped");
     log.warn("session marked stopped", { session_id: sessionId });
     this.onUpdate(store.getState() as SessionState);
+    this.scheduleRemoval(sessionId);
     return true;
+  }
+
+  private scheduleRemoval(sessionId: string): void {
+    if (this.removeTimers.has(sessionId)) return;
+    const t = setTimeout(() => {
+      this.removeTimers.delete(sessionId);
+      this.sessions.delete(sessionId);
+      this.scheduleSave();
+      log.info("session removed from registry", { session_id: sessionId });
+      this.onRemove?.(sessionId);
+    }, CLOSED_REMOVE_DELAY_MS);
+    this.removeTimers.set(sessionId, t);
   }
 
   destroy(): void {
     clearInterval(this.staleTimer);
     if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = null; }
+    for (const t of this.removeTimers.values()) clearTimeout(t);
+    this.removeTimers.clear();
     persistSessions(this.getAllStates(), Object.fromEntries(this.projectFirstSeen));
     log.info("sessions persisted on shutdown");
   }

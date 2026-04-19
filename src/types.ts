@@ -60,7 +60,8 @@ export interface AccountInfo {
 export type WsMessage =
   | { type: "sessions_snapshot"; sessions: SessionState[]; accountInfo?: AccountInfo }
   | { type: "session_updated"; session: SessionState }
-  | { type: "checkpoint_event"; severity: "suggested" | "mandatory"; state: SessionState };
+  | { type: "checkpoint_event"; severity: "suggested" | "mandatory"; state: SessionState }
+  | { type: "session_removed"; session_id: string };
 
 export interface AppConfig {
   token_threshold: number;

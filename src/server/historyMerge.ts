@@ -28,7 +28,7 @@ export interface SessionRow {
 }
 
 function projectNameFromReport(label: string): string {
-  // "quick/ProjectName" → "ProjectName"
+  // "username/ProjectName" → "ProjectName"
   const parts = label.split("/");
   return parts[parts.length - 1].toLowerCase();
 }

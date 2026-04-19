@@ -51,6 +51,7 @@ const registry = new SessionRegistry(
   config,
   (state) => broadcaster.broadcastSessionUpdate(state),
   (severity, state) => broadcaster.broadcastCheckpoint(severity, state),
+  (sessionId) => broadcaster.broadcastSessionRemoved(sessionId),
 );
 
 eventBus.on("event", (e) => registry.route(e));

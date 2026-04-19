@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { mergeHistory, ReportSession, ClauditorSession } from "../../src/server/historyMerge";
 
 const report: ReportSession[] = [
-  { label: "quick/Alpha", turns: 50, wasteFactor: 2.5, totalTokens: 500_000, date: "2026-04-18T10:00:00Z", avgCacheRatio: 0.95 },
-  { label: "quick/Beta",  turns: 10, wasteFactor: 1.2, totalTokens: 100_000, date: "2026-04-17T10:00:00Z", avgCacheRatio: 0.98 },
+  { label: "user/Alpha", turns: 50, wasteFactor: 2.5, totalTokens: 500_000, date: "2026-04-18T10:00:00Z", avgCacheRatio: 0.95 },
+  { label: "user/Beta",  turns: 10, wasteFactor: 1.2, totalTokens: 100_000, date: "2026-04-17T10:00:00Z", avgCacheRatio: 0.98 },
 ];
 
 const sessions: ClauditorSession[] = [
@@ -37,7 +37,7 @@ describe("mergeHistory", () => {
 
   it("defaults wasteFactor to 1.0 when undefined", () => {
     const r: ReportSession[] = [
-      { label: "quick/X", turns: 5, wasteFactor: undefined as any, totalTokens: 10_000, date: "2026-04-16T00:00:00Z", avgCacheRatio: 0.9 },
+      { label: "user/X", turns: 5, wasteFactor: undefined as any, totalTokens: 10_000, date: "2026-04-16T00:00:00Z", avgCacheRatio: 0.9 },
     ];
     const rows = mergeHistory(r, []);
     expect(rows[0].wasteFactor).toBe(1.0);
@@ -45,7 +45,7 @@ describe("mergeHistory", () => {
 
   it("is case-insensitive on project name matching", () => {
     const r: ReportSession[] = [
-      { label: "quick/MYPROJECT", turns: 20, wasteFactor: 2.0, totalTokens: 200_000, date: "2026-04-15T00:00:00Z", avgCacheRatio: 0.9 },
+      { label: "user/MYPROJECT", turns: 20, wasteFactor: 2.0, totalTokens: 200_000, date: "2026-04-15T00:00:00Z", avgCacheRatio: 0.9 },
     ];
     const s: ClauditorSession[] = [
       { label: "MyProject (main)", turns: 20, cacheRatio: 0.88, cost: 3.00, model: "claude-sonnet-4-6", lastUpdated: "2026-04-15T00:00:00Z" },

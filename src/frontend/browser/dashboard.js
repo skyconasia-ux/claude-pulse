@@ -119,6 +119,27 @@ function handleMessage(msg) {
     updateEmptyState();
     updateCommandCenter();
     flashCheckpointButton(msg.state.session_id, msg.severity);
+  } else if (msg.type === "session_removed") {
+    const tile = document.querySelector(`.tile[data-id="${msg.session_id}"]`);
+    if (tile) {
+      tile.style.transition = "opacity 0.8s ease, transform 0.8s ease";
+      tile.style.opacity = "0";
+      tile.style.transform = "scale(0.95)";
+      setTimeout(() => {
+        tile.remove();
+        delete sessions[msg.session_id];
+        delete chartHistory[msg.session_id];
+        updateCommandCenter();
+        updateTopbar();
+        updateEmptyState();
+      }, 850);
+    } else {
+      delete sessions[msg.session_id];
+      delete chartHistory[msg.session_id];
+      updateCommandCenter();
+      updateTopbar();
+      updateEmptyState();
+    }
   }
 }
 
@@ -1208,7 +1229,7 @@ function fmtDate(iso) {
 }
 
 function parseLabel(label) {
-  // "quick/ProjectName" → { project: "ProjectName", branch: "" }
+  // "username/ProjectName" → { project: "ProjectName", branch: "" }
   // "ProjectName (main)" → { project: "ProjectName", branch: "main" }
   const slashMatch = label.match(/^[^/]+\/(.+)$/);
   if (slashMatch) return { project: slashMatch[1], branch: "" };
