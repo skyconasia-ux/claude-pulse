@@ -207,7 +207,7 @@ function buildTile(sessionId) {
     <div class="usage-section">
       <div class="usage-bar-header">
         <span class="usage-bar-label">DAILY USAGE</span>
-        <span class="usage-bar-cap">est. cap: 1M</span>
+        <span class="usage-bar-cap">this session · est. cap 1M</span>
         <span data-field="pct" class="usage-bar-pct">0%</span>
       </div>
       <div class="progress-track"><div class="progress-fill" data-field="bar" style="width:0%"></div></div>
@@ -285,11 +285,9 @@ function updateTile(tile, s) {
   const tokenPct = Math.min(weighted / THRESHOLD * 100, 100);
   const left     = Math.max(THRESHOLD - weighted, 0);
 
-  // Daily bar: use authoritative % from Claude Code notification if available;
-  // otherwise fall back to session token estimate against 1M cap.
-  const notifPct     = parseNotificationPct_js(s.last_notification);
-  const fromCLI      = notifPct > 0;
-  const pct          = fromCLI ? notifPct : tokenPct;
+  // Daily bar: always uses session token count — that's what we actually track live.
+  // Notification % is a past snapshot; using it as "current" would be misleading.
+  const pct = tokenPct;
 
   animNum(tile, "tot-tokens", total,                fmtInt);
   animNum(tile, "tot-cost",   s.cost_usd || 0,      fmtCost2);
@@ -308,12 +306,10 @@ function updateTile(tile, s) {
   animNum(tile, "burn",  s.burn_rate_per_sec || 0, fmtWhole);
   animNum(tile, "tools", s.tool_calls_total  || 0, fmtWhole);
 
-  // Daily progress bar — use CLI-reported % when available (authoritative), else session estimate
+  // Daily progress bar — session token count against estimated 1M cap
   const pctEl = tile.querySelector("[data-field='pct']");
   countUp(pctEl, pct, n => n.toFixed(0) + "%");
   tile.querySelector("[data-field='bar']").style.width = Math.min(pct, 100).toFixed(1) + "%";
-  const capEl = tile.querySelector(".usage-bar-cap");
-  if (capEl) capEl.textContent = fromCLI ? "from Claude Code" : "est. cap: 1M";
 
   // Weekly usage section
   const weeklySection = tile.querySelector("[data-field='weekly-section']");
@@ -426,7 +422,7 @@ function updateTile(tile, s) {
   if (alertCard) {
     const sessionLevel = s.notification_level;
     const weeklyLevel  = s.notification_level_weekly;
-    const showAlert    = pct >= 70 || !!sessionLevel || !!weeklyLevel;
+    const showAlert    = pct >= 70 || !!s.last_notification || !!s.last_notification_weekly;
 
     if (showAlert) {
       alertCard.classList.add('open');
@@ -438,30 +434,41 @@ function updateTile(tile, s) {
       if (msgs) {
         const entries = [];
 
-        // Session/daily entry
-        const si = parseNotifFull(s.last_notification, s.notification_received_ms);
-        if (si || pct >= 70) {
-          const sPct    = si?.pct ?? Math.round(pct);
-          const sType   = si?.limitType ?? 'USAGE';
-          const sLevel  = sessionLevel || (pct >= 90 ? 'critical' : 'warn');
-          const sReset  = si?.timeUntil ? `resets in ${si.timeUntil}` : null;
-          const sUpgrade = si?.hasUpgrade ?? false;
-          entries.push({ type: sType, pct: sPct, level: sLevel, resetIn: sReset, upgrade: sUpgrade });
+        // Session/daily entry — show as snapshot with age
+        if (s.last_notification) {
+          const si      = parseNotifFull(s.last_notification, s.notification_received_ms);
+          const sLevel  = sessionLevel || 'warn';
+          const age     = s.notification_received_ms ? fmtTimeUntil(Date.now() - s.notification_received_ms) + ' ago' : 'recently';
+          entries.push({
+            type: si?.limitType ?? 'USAGE',
+            pct: si?.pct,
+            level: sLevel,
+            age,
+            resetIn: si?.timeUntil ? `resets in ${si.timeUntil}` : null,
+            upgrade: si?.hasUpgrade ?? false,
+          });
         }
 
         // Weekly entry
-        const wi = parseNotifFull(s.last_notification_weekly, s.notification_weekly_received_ms);
-        if (wi) {
-          const wLevel  = weeklyLevel || 'warn';
-          const wReset  = wi.timeUntil ? `resets in ${wi.timeUntil}` : null;
-          entries.push({ type: wi.limitType, pct: wi.pct, level: wLevel, resetIn: wReset, upgrade: false });
+        if (s.last_notification_weekly) {
+          const wi     = parseNotifFull(s.last_notification_weekly, s.notification_weekly_received_ms);
+          const wLevel = weeklyLevel || 'warn';
+          const age    = s.notification_weekly_received_ms ? fmtTimeUntil(Date.now() - s.notification_weekly_received_ms) + ' ago' : 'recently';
+          entries.push({
+            type: wi?.limitType ?? 'WEEKLY',
+            pct: wi?.pct,
+            level: wLevel,
+            age,
+            resetIn: wi?.timeUntil ? `resets in ${wi.timeUntil}` : null,
+            upgrade: false,
+          });
         }
 
         msgs.innerHTML = entries.map(e => `
           <div class="ac-msg-entry">
             <div class="ac-msg-row">
               <span class="ac-msg-type ${e.level}">${e.type}</span>
-              <span class="ac-msg-pct ${e.level}">${e.pct != null ? e.pct + '%' : '—'}</span>
+              <span class="ac-msg-pct ${e.level}">${e.pct != null ? e.pct + '%' : '—'} <span class="ac-msg-age">reported ${e.age}</span></span>
             </div>
             ${e.resetIn ? `<div class="ac-msg-reset">⏱ ${e.resetIn}</div>` : ''}
             ${e.upgrade ? `<div class="ac-msg-upgrade">⬡ /upgrade to keep using Claude Code</div>` : ''}
@@ -861,11 +868,12 @@ function parseNotifFull(text, receivedMs) {
     resetMs = receivedMs + parseFloat(relMatch[1]) * 3600_000;
   }
 
-  // Pattern: "resets [at] TIME [(TZ)]" or "resets DATE, TIME [(TZ)]"
-  const resetMatch = text.match(/resets(?:\s+at)?\s+((?:\w+\s+\d+,?\s+)?\d+(?::\d+)?\s*(?:am|pm)?)\s*(?:\(([^)]+)\))?/i);
+  // Pattern: "resets [at] TIME [(IANA/TZ)]"
+  // Only capture timezone if it looks like "Region/City" — exclude "(3h from now)" etc.
+  const resetMatch = text.match(/resets(?:\s+at)?\s+((?:\w+\s+\d+,?\s+)?\d+(?::\d+)?\s*(?:am|pm)?)\s*(?:\(([A-Za-z]+\/[A-Za-z_]+)\))?/i);
   if (resetMatch) {
     const parsed = parseResetTimeStr(resetMatch[1].trim(), resetMatch[2] || null);
-    if (parsed) resetMs = parsed; // prefer explicit time over relative offset
+    if (parsed) resetMs = parsed;
   }
 
   let timeUntil = null;
