@@ -46,6 +46,12 @@
     .tile.stale { opacity: 0.5; border-color: rgba(255,255,255,0.07); }
     .tile.alert-yellow { border-color: rgba(255,170,0,0.35); }
     .tile.alert-red { border-color: rgba(255,68,85,0.4); box-shadow: 0 0 16px rgba(255,68,85,0.12); }
+    .tile[data-band="warn-70"] { border-color: rgba(255,170,0,0.35); }
+    .tile[data-band="warn-80"] { border-color: rgba(255,170,0,0.55); }
+    .tile[data-band="warn-90"] { border-color: rgba(255,68,85,0.4);  box-shadow: 0 0 16px rgba(255,68,85,0.12); }
+    .tile[data-band="warn-99"] { border-color: rgba(255,68,85,0.7);  box-shadow: 0 0 24px rgba(255,68,85,0.22); animation: tile-pulse 0.7s ease-in-out infinite; }
+    .tile[data-band="exceeded"]{ border-color: var(--red);           box-shadow: 0 0 32px rgba(255,68,85,0.30); animation: tile-pulse 0.5s ease-in-out infinite; }
+    @keyframes tile-pulse { 0%,100%{ opacity:1; } 50%{ opacity:0.88; } }
 
     .tile-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
     .tile-name-wrap { min-width: 0; }
@@ -66,6 +72,15 @@
     .badge-not_launched { background: rgba(68,68,102,0.2); color: var(--dim);   border: 1px solid rgba(68,68,102,0.3); }
     .badge-unknown     { background: rgba(255,170,0,0.08); color: rgba(255,170,0,0.6); border: 1px solid rgba(255,170,0,0.2); }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .badge-alert {
+      font-size: 8px; letter-spacing: 1.5px; padding: 2px 7px; border-radius: 3px;
+      font-weight: bold; white-space: nowrap;
+      background: rgba(255,68,85,0.12); border: 1px solid rgba(255,68,85,0.55); color: var(--red);
+      animation: pulse 0.75s ease-in-out infinite;
+    }
+    .badge-alert.warn-amber {
+      background: rgba(255,170,0,0.12); border-color: rgba(255,170,0,0.5); color: var(--amber);
+    }
 
     .token-hero-label { font-size: 10px; letter-spacing: 2px; color: var(--dim); margin-bottom: 4px; }
     .token-hero-value { font-size: 48px; font-weight: bold; color: var(--cyan); text-shadow: 0 0 20px var(--cyan); letter-spacing: 2px; line-height: 1; }
@@ -176,21 +191,31 @@
     .tile-time-row .ttr-val { color: rgba(0,255,240,0.6); }
     .tile-time-row .ttr-sep { color: rgba(255,255,255,0.12); }
 
-    .tile-warn-banner {
-      display: none; align-items: center; gap: 8px;
-      border-radius: 5px; padding: 6px 10px;
-      font-size: 9px; letter-spacing: 1px; font-weight: bold;
-      animation: pulse 1s ease-in-out infinite;
+    .alert-card {
+      display: none; flex-direction: column; gap: 7px;
+      background: rgba(255,68,85,0.05); border: 1px solid rgba(255,68,85,0.4);
+      border-radius: 7px; padding: 11px 13px;
+      animation: pulse 0.8s ease-in-out infinite;
     }
-    .tile-warn-banner.open { display: flex; }
-    .tile-warn-banner.level-warn {
-      background: rgba(255,170,0,0.08); border: 1px solid rgba(255,170,0,0.35); color: #ffaa00;
+    .alert-card.open { display: flex; }
+    .alert-card.warn-amber {
+      background: rgba(255,170,0,0.05); border-color: rgba(255,170,0,0.4);
     }
-    .tile-warn-banner.level-critical {
-      background: rgba(255,68,85,0.08); border: 1px solid rgba(255,68,85,0.4); color: #ff4455;
+    .ac-header { display: flex; align-items: center; gap: 7px; }
+    .ac-icon   { font-size: 11px; }
+    .ac-title  { font-size: 8px; font-weight: bold; letter-spacing: 2px; color: var(--red); }
+    .alert-card.warn-amber .ac-title { color: var(--amber); }
+    .ac-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 16px; }
+    .ac-field  { display: flex; flex-direction: column; gap: 1px; }
+    .ac-lbl    { font-size: 7px; letter-spacing: 1.5px; color: var(--dim); }
+    .ac-val    { font-size: 13px; font-weight: bold; }
+    .ac-val.pct  { color: var(--red); }
+    .ac-val.time { color: var(--amber); }
+    .alert-card.warn-amber .ac-val.pct { color: var(--amber); }
+    .ac-upgrade {
+      font-size: 8px; color: rgba(255,170,0,0.75);
+      border-top: 1px solid rgba(255,68,85,0.15); padding-top: 6px; letter-spacing: 0.5px;
     }
-    .tile-warn-icon { font-size: 11px; }
-    .tile-warn-msg  { flex: 1; }
 
     .model-breakdown {
       display: flex; flex-direction: column; gap: 6px;
@@ -223,8 +248,9 @@
       color: var(--cyan); white-space: nowrap; box-shadow: 0 0 12px rgba(0,255,240,0.2);
       transform: translate(-50%, -110%);
     }
-    #chart-tooltip .tt-time { color: rgba(255,255,255,0.55); font-size: 9px; margin-bottom: 2px; }
-    #chart-tooltip .tt-val  { color: var(--cyan); font-size: 11px; letter-spacing: 1px; }
+    #chart-tooltip .tt-time  { color: rgba(255,255,255,0.55); font-size: 9px; margin-bottom: 2px; }
+    #chart-tooltip .tt-val   { color: var(--cyan); font-size: 11px; letter-spacing: 1px; }
+    #chart-tooltip .tt-model { color: rgba(191,0,255,0.8); font-size: 9px; margin-top: 1px; letter-spacing: 1px; }
 
     @keyframes blink-banner {
       0%, 100% { opacity: 1; transform: translateX(-50%) scale(1); }
@@ -359,7 +385,7 @@
   </div>
 
   <div class="banner" id="banner"></div>
-  <div id="chart-tooltip"><div class="tt-time" id="tt-time"></div><div class="tt-val" id="tt-val"></div></div>
+  <div id="chart-tooltip"><div class="tt-time" id="tt-time"></div><div class="tt-val" id="tt-val"></div><div class="tt-model" id="tt-model"></div></div>
 
   <div class="overlay" id="abort-overlay">
     <div class="confirm-box">

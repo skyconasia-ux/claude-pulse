@@ -60,8 +60,6 @@
 
 ---
 
-## CURRENT CHECKPOINT
-
 ### 2026-04-19 — PID Tracking + Terminal Multi-Session (complete)
 
 **PID Tracking (all 5 tasks done):**
@@ -78,5 +76,18 @@
 - `src/frontend/terminal/index.ts` — full rewrite: session list table (top, keyboard-navigable), detail pane (metrics + model badge + weighted budget, burn chart, prediction, alert), log box
 - 80/80 tests total; pushed to GitHub
 
+---
+
+## CURRENT CHECKPOINT
+
+### 2026-04-19 — Phase 3 Browser Dashboard (complete)
+
+**Completed:**
+- Model in graph tooltip: each history point records `model_last`; tooltip shows time, tokens, model name
+- 5-band warning system: 70/80/90/99/exceeded bands via `data-band` CSS attribute; replaces old two-class approach
+- Header alert badge: blinking `⚠ N%` badge in tile header at ≥70%, amber <90%, red ≥90%, `⚠ MAX` at 100%
+- Alert card: structured USAGE LIMIT WARNING panel with live %, parsed RESETS time, /upgrade line; replaces plain warn-banner
+- 80/80 tests passing; pushed to GitHub
+
 **Pending:**
-- Web dashboard redesign (user instructions pending)
+- None — all planned phases complete

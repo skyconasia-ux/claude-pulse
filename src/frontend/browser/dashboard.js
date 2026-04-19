@@ -74,6 +74,7 @@ function recordHistory(s) {
     toolCalls,
     tokensDelta: prev ? Math.max(0, tokens - prev.tokens) : 0,
     toolsDelta:  prev ? Math.max(0, toolCalls - prev.toolCalls) : 0,
+    model: s.model_last ?? null,
     ts: Date.now(),
   });
   if (hist.length > 120) hist.shift();
@@ -176,6 +177,7 @@ function buildTile(sessionId) {
       <div class="tile-badges">
         <span class="badge" data-field="lifecycle"></span>
         <span class="badge badge-stale" data-field="stale" style="display:none">STALE</span>
+        <span class="badge-alert" data-field="alert-badge" style="display:none"></span>
       </div>
     </div>
     <div class="tile-time-row">
@@ -222,9 +224,22 @@ function buildTile(sessionId) {
       <div class="stat stat-eta"><div class="stat-label">ETA</div><div class="stat-value" data-field="eta">—</div></div>
       <div class="stat stat-tools"><div class="stat-label">TOOLS</div><div class="stat-value" data-field="tools">0</div></div>
     </div>
-    <div class="tile-warn-banner">
-      <span class="tile-warn-icon">⚠</span>
-      <span class="tile-warn-msg"></span>
+    <div class="alert-card" data-field="alert-card">
+      <div class="ac-header">
+        <span class="ac-icon">⚠</span>
+        <span class="ac-title">USAGE LIMIT WARNING</span>
+      </div>
+      <div class="ac-fields">
+        <div class="ac-field">
+          <div class="ac-lbl">USED</div>
+          <div class="ac-val pct" data-field="ac-pct">—</div>
+        </div>
+        <div class="ac-field" data-field="ac-reset-wrap" style="display:none">
+          <div class="ac-lbl">RESETS</div>
+          <div class="ac-val time" data-field="ac-reset">—</div>
+        </div>
+      </div>
+      <div class="ac-upgrade" data-field="ac-upgrade" style="display:none">⬡ /upgrade to keep using Claude Code</div>
     </div>
     <div class="tile-footer">
       <span class="alert-pill" data-field="alert">● GREEN</span>
@@ -307,6 +322,18 @@ function updateTile(tile, s) {
   // Stale badge
   tile.querySelector("[data-field='stale']").style.display = s.is_stale ? "" : "none";
 
+  // Alert badge in header
+  const alertBadge = tile.querySelector("[data-field='alert-badge']");
+  if (alertBadge) {
+    if (pct >= 70) {
+      alertBadge.style.display = "";
+      alertBadge.textContent = pct >= 100 ? "⚠ MAX" : `⚠ ${Math.round(pct)}%`;
+      alertBadge.className = "badge-alert" + (pct < 90 ? " warn-amber" : "");
+    } else {
+      alertBadge.style.display = "none";
+    }
+  }
+
   // Alert level
   const alertEl = tile.querySelector("[data-field='alert']");
   const level = s.alert_level || "green";
@@ -327,11 +354,9 @@ function updateTile(tile, s) {
     canvas._sessionId = s.session_id;
   }
 
-  // Tile border class
-  tile.className = "tile" +
-    (s.is_stale ? " stale" : "") +
-    (level === "yellow" ? " alert-yellow" : "") +
-    (level === "red" ? " alert-red" : "");
+  // Tile border — data-band drives 5-band CSS
+  tile.className = "tile" + (s.is_stale ? " stale" : "");
+  tile.dataset.band = usageBand(pct);
   tile.dataset.id = s.session_id;
   if (s.started_at) tile.dataset.startedAt = s.started_at;
   if (s.project_first_seen_ms) tile.dataset.projectFirstSeen = s.project_first_seen_ms;
@@ -355,16 +380,22 @@ function updateTile(tile, s) {
     mbEl.style.display = "none";
   }
 
-  // Usage warning banner
-  const banner = tile.querySelector('.tile-warn-banner');
-  if (banner) {
-    if (s.last_notification) {
-      banner.classList.add('open');
-      banner.classList.toggle('level-warn',     s.notification_level === 'warn');
-      banner.classList.toggle('level-critical', s.notification_level === 'critical');
-      banner.querySelector('.tile-warn-msg').textContent = s.last_notification;
+  // Alert card — live usage % + parsed reset time + upgrade prompt
+  const alertCard = tile.querySelector("[data-field='alert-card']");
+  if (alertCard) {
+    if (pct >= 70) {
+      alertCard.classList.add('open');
+      alertCard.classList.toggle('warn-amber', pct < 90);
+      set(tile, 'ac-pct', Math.round(pct) + '%');
+      const { resetStr, hasUpgrade } = parseNotification(s.last_notification);
+      const resetWrap = tile.querySelector("[data-field='ac-reset-wrap']");
+      const resetEl   = tile.querySelector("[data-field='ac-reset']");
+      const upgradeEl = tile.querySelector("[data-field='ac-upgrade']");
+      if (resetWrap) resetWrap.style.display = resetStr ? "" : "none";
+      if (resetEl && resetStr) resetEl.textContent = resetStr;
+      if (upgradeEl) upgradeEl.style.display = hasUpgrade ? "" : "none";
     } else {
-      banner.classList.remove('open', 'level-warn', 'level-critical');
+      alertCard.classList.remove('open', 'warn-amber');
     }
   }
 }
@@ -549,6 +580,8 @@ function wireChartTooltip(canvas, sessionId) {
 
     ttTime.textContent = fmtTs(pt.ts);
     ttVal.textContent  = label;
+    const ttModel = document.getElementById("tt-model");
+    if (ttModel) ttModel.textContent = pt.model ? shortModelName(pt.model) : "";
     tooltip.style.display = "block";
     tooltip.style.left = e.clientX + "px";
     tooltip.style.top  = e.clientY + "px";
@@ -631,6 +664,22 @@ function drawChart(canvas, sessionId) {
 }
 
 // ── Helpers ──────────────────────────────────────────────
+function usageBand(pct) {
+  if (pct >= 100) return 'exceeded';
+  if (pct >= 99)  return 'warn-99';
+  if (pct >= 90)  return 'warn-90';
+  if (pct >= 80)  return 'warn-80';
+  if (pct >= 70)  return 'warn-70';
+  return 'normal';
+}
+
+function parseNotification(text) {
+  if (!text) return { resetStr: null, hasUpgrade: false };
+  const m = text.match(/resets\s+(\d+[ap]m)(?:\s*\(([^)]+)\))?/i);
+  const resetStr = m ? m[1] + (m[2] ? ' ' + m[2] : '') : null;
+  return { resetStr, hasUpgrade: text.toLowerCase().includes('upgrade') };
+}
+
 function fmt(n) { return Number(n).toLocaleString(); }
 function fmtEta(sec) {
   if (!isFinite(sec) || sec <= 0) return "—";
