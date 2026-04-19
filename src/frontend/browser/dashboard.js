@@ -118,7 +118,7 @@ function handleMessage(msg) {
     updateTopbar();
     updateEmptyState();
     updateCommandCenter();
-    showBanner(msg.severity, msg.state.project_name);
+    flashCheckpointButton(msg.state.session_id, msg.severity);
   }
 }
 
@@ -799,15 +799,16 @@ function renderPlanBar(tile) {
   bar._rendered = true;
 }
 
-// ── Checkpoint banner ────────────────────────────────────
-function showBanner(severity, projectName) {
-  const banner = document.getElementById("banner");
-  banner.textContent = severity === "mandatory"
-    ? `⚠ CHECKPOINT — ${projectName}`
-    : `● RECOMMEND CHECKPOINT — ${projectName}`;
-  banner.className = `banner ${severity}`;
-  banner.style.display = "block";
-  setTimeout(() => { banner.style.display = "none"; }, 60000);
+// ── Checkpoint — flash button inside the tile, no floating banner
+function flashCheckpointButton(sessionId, severity) {
+  const tile = document.querySelector(`.tile[data-id="${CSS.escape(sessionId)}"]`);
+  if (!tile) return;
+  const btn = tile.querySelector(".btn-checkpoint");
+  if (!btn || btn.disabled) return;
+  btn.classList.add(severity === "mandatory" ? "flash-mandatory" : "flash-suggested");
+  setTimeout(() => {
+    btn.classList.remove("flash-mandatory", "flash-suggested");
+  }, 60000);
 }
 
 // ── Abort ────────────────────────────────────────────────

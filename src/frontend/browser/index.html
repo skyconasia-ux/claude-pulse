@@ -151,13 +151,14 @@
     #empty-state { display: none; text-align: center; padding: 80px 20px; color: var(--dim); font-size: 13px; letter-spacing: 2px; }
     #empty-state .empty-icon { font-size: 40px; margin-bottom: 16px; opacity: 0.25; }
 
-    .banner {
-      display: none; position: fixed; top: 24px; left: 50%; transform: translateX(-50%);
-      padding: 14px 28px; border-radius: 8px; font-size: 13px; letter-spacing: 2px;
-      font-weight: bold; z-index: 200;
+    .btn-checkpoint.flash-suggested {
+      border-color: var(--amber); color: var(--amber);
+      background: rgba(255,170,0,0.1); animation: blink-slow 1.2s ease-in-out infinite;
     }
-    .banner.suggested { background: rgba(255,170,0,0.15); border: 1px solid var(--amber); color: var(--amber); animation: blink-banner 1.2s ease-in-out infinite; }
-    .banner.mandatory { background: rgba(255,68,85,0.15); border: 1px solid var(--red);   color: var(--red);   animation: blink-banner 0.7s ease-in-out infinite; }
+    .btn-checkpoint.flash-mandatory {
+      border-color: var(--red); color: var(--red);
+      background: rgba(255,68,85,0.1); animation: blink-fast 0.7s ease-in-out infinite;
+    }
 
     .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 300; align-items: center; justify-content: center; }
     .overlay.open { display: flex; }
@@ -270,10 +271,6 @@
     #chart-tooltip .tt-val   { color: var(--cyan); font-size: 11px; letter-spacing: 1px; }
     #chart-tooltip .tt-model { color: rgba(191,0,255,0.8); font-size: 9px; margin-top: 1px; letter-spacing: 1px; }
 
-    @keyframes blink-banner {
-      0%, 100% { opacity: 1; transform: translateX(-50%) scale(1); }
-      50% { opacity: 0.55; transform: translateX(-50%) scale(0.98); }
-    }
 
     /* ── History panel ─────────────────────────────────── */
     #history-divider {
@@ -549,7 +546,6 @@
     <div class="hist-footer" id="history-footer">Loading...</div>
   </div>
 
-  <div class="banner" id="banner"></div>
   <div id="chart-tooltip"><div class="tt-time" id="tt-time"></div><div class="tt-val" id="tt-val"></div><div class="tt-model" id="tt-model"></div></div>
 
   <div class="overlay" id="abort-overlay">
