@@ -384,7 +384,7 @@
     .cc-badge-closed  { background: rgba(68,68,102,0.2);  color: var(--gray);  border: 1px solid rgba(68,68,102,0.4); }
 
     .cc-stats {
-      display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px;
+      display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
     }
     .cc-stat { display: flex; flex-direction: column; gap: 3px; }
     .cc-stat-label { font-size: 8px; letter-spacing: 2px; color: var(--dim); }
@@ -394,14 +394,28 @@
     .cc-turns  .cc-stat-value { color: var(--amber); }
     .cc-tools  .cc-stat-value { color: rgba(0,255,240,0.55); }
     .cc-burn   .cc-stat-value { color: var(--cyan); font-size: 18px; }
-    .cc-models .cc-stat-value { font-size: 11px; display: flex; flex-direction: column; gap: 3px; margin-top: 2px; }
-    .cc-model-chip {
-      font-size: 8px; letter-spacing: 1px; padding: 2px 6px; border-radius: 3px;
-      font-weight: bold; white-space: nowrap;
+
+    .cc-models-row {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
     }
-    .cc-model-chip.opus   { background: rgba(191,0,255,0.12); border: 1px solid rgba(191,0,255,0.35); color: var(--purple); }
-    .cc-model-chip.sonnet { background: rgba(0,255,240,0.08); border: 1px solid rgba(0,255,240,0.3);  color: var(--cyan); }
-    .cc-model-chip.haiku  { background: rgba(0,255,136,0.08); border: 1px solid rgba(0,255,136,0.3);  color: var(--green); }
+    .cc-model-block {
+      display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center;
+      background: var(--bg3); border-radius: 6px; padding: 10px 13px;
+    }
+    .cc-model-badge {
+      font-size: 9px; letter-spacing: 1.5px; padding: 2px 8px; border-radius: 3px;
+      font-weight: bold; grid-row: span 3;
+    }
+    .cc-model-badge.opus   { background: rgba(191,0,255,0.15); border: 1px solid rgba(191,0,255,0.4); color: var(--purple); }
+    .cc-model-badge.sonnet { background: rgba(0,255,240,0.10); border: 1px solid rgba(0,255,240,0.35); color: var(--cyan); }
+    .cc-model-badge.haiku  { background: rgba(0,255,136,0.10); border: 1px solid rgba(0,255,136,0.35); color: var(--green); }
+    .cc-model-field { display: flex; flex-direction: column; }
+    .cc-model-field-label { font-size: 7px; letter-spacing: 1.5px; color: var(--dim); }
+    .cc-model-field-val   { font-size: 13px; font-weight: bold; }
+    .cc-mf-in   .cc-model-field-val { color: rgba(0,255,240,0.85); }
+    .cc-mf-out  .cc-model-field-val { color: rgba(191,0,255,0.85); }
+    .cc-mf-cost .cc-model-field-val { color: var(--purple); font-size: 11px; }
+    .cc-model-no-data { font-size: 10px; color: var(--gray); grid-column: 2; }
 
     .cc-divider { height: 1px; background: rgba(0,255,240,0.08); }
 
@@ -494,11 +508,8 @@
         <div class="cc-stat-label">COMBINED BURN/S</div>
         <div class="cc-stat-value" id="cc-burn">0</div>
       </div>
-      <div class="cc-stat cc-models">
-        <div class="cc-stat-label">MODELS IN USE</div>
-        <div class="cc-stat-value" id="cc-model-chips"></div>
-      </div>
     </div>
+    <div class="cc-models-row" id="cc-models-row"></div>
     <div class="cc-divider"></div>
     <div class="cc-account">
       <div class="cc-account-bar-wrap">

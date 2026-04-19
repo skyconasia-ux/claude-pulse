@@ -616,17 +616,12 @@ function updateCommandCenter() {
 
   // Aggregate totals
   let totTokens = 0, totCost = 0, totTurns = 0, totTools = 0, totBurn = 0;
-  const famTokens = { opus: 0, sonnet: 0, haiku: 0 };
   for (const s of all) {
     totTokens += s.tokens_total || 0;
     totCost   += s.cost_usd    || 0;
     totTurns  += s.turns       || 0;
     totTools  += s.tool_calls_total || 0;
     totBurn   += s.burn_rate_per_sec || 0;
-    for (const [id, stats] of Object.entries(s.models || {})) {
-      const f = modelFamily(id);
-      if (f) famTokens[f] += (stats.tokens_in + stats.tokens_out);
-    }
   }
 
   const ccTokensEl = document.getElementById("cc-tokens");
@@ -644,14 +639,46 @@ function updateCommandCenter() {
   const ccBurnEl = document.getElementById("cc-burn");
   countUp(ccBurnEl, totBurn, n => Math.round(n) + "/s");
 
-  // Model chips — only show families with usage
-  const chips = document.getElementById("cc-model-chips");
-  if (chips) {
-    const rows = [];
-    if (famTokens.opus   > 0) rows.push(`<span class="cc-model-chip opus">OPUS ${fmtTokensM(famTokens.opus)}</span>`);
-    if (famTokens.sonnet > 0) rows.push(`<span class="cc-model-chip sonnet">SONNET ${fmtTokensM(famTokens.sonnet)}</span>`);
-    if (famTokens.haiku  > 0) rows.push(`<span class="cc-model-chip haiku">HAIKU ${fmtTokensM(famTokens.haiku)}</span>`);
-    chips.innerHTML = rows.length ? rows.join("") : '<span style="color:var(--gray);font-size:10px">—</span>';
+  // Model breakdown blocks — always show all 3, aggregate across all sessions
+  const famIn   = { opus: 0, sonnet: 0, haiku: 0 };
+  const famOut  = { opus: 0, sonnet: 0, haiku: 0 };
+  const famCost = { opus: 0, sonnet: 0, haiku: 0 };
+  for (const s of all) {
+    for (const [id, stats] of Object.entries(s.models || {})) {
+      const f = modelFamily(id);
+      if (!f) continue;
+      famIn[f]   += stats.tokens_in;
+      famOut[f]  += stats.tokens_out;
+      famCost[f] += stats.cost_usd;
+    }
+  }
+  const modelsRow = document.getElementById("cc-models-row");
+  if (modelsRow) {
+    modelsRow.innerHTML = [
+      { key: 'opus',   label: 'OPUS'   },
+      { key: 'sonnet', label: 'SONNET' },
+      { key: 'haiku',  label: 'HAIKU'  },
+    ].map(({ key, label }) => {
+      const hasData = famIn[key] + famOut[key] > 0;
+      const inner = hasData
+        ? `<div class="cc-model-field cc-mf-in">
+             <span class="cc-model-field-label">IN</span>
+             <span class="cc-model-field-val">${fmtTokensM(famIn[key])}</span>
+           </div>
+           <div class="cc-model-field cc-mf-out">
+             <span class="cc-model-field-label">OUT</span>
+             <span class="cc-model-field-val">${fmtTokensM(famOut[key])}</span>
+           </div>
+           <div class="cc-model-field cc-mf-cost">
+             <span class="cc-model-field-label">COST</span>
+             <span class="cc-model-field-val">${fmtCost4(famCost[key])}</span>
+           </div>`
+        : `<span class="cc-model-no-data">—</span>`;
+      return `<div class="cc-model-block">
+        <span class="cc-model-badge ${key}">${label}</span>
+        ${inner}
+      </div>`;
+    }).join('');
   }
 
   // Account usage — find the most informative notification across all sessions
