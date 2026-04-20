@@ -1,7 +1,7 @@
 # Claude Working Memory
 
 Project: Claude Pulse
-Last updated: 2026-04-19
+Last updated: 2026-04-20
 
 ## Rules
 - Do not re-derive architecture once defined
@@ -42,9 +42,9 @@ HooksAdapter / OtelAdapter / JournalWatcher → EventBus → SessionRegistry →
 - Abort: POST /abort/:sessionId → registry.markStopped()
 
 ## Pending
-- OTel span inspection: check server logs for rate-limit header keys after next `claude` run
-- Phase 5: abort controls, production hardening
-- `gh release create v0.1.0` public release
+- OTel span inspection: check server logs for `anthropic-ratelimit-*` keys after next `claude` run
+- Phase 5: abort controls in browser dashboard, production hardening
+- v0.1.0 released — next: v0.2 planning
 
 ## Key Decisions
 See decisions.md at project root for full Q&A log.

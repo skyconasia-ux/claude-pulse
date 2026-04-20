@@ -109,23 +109,29 @@
 
 ---
 
+### 2026-04-19 — Session Lifecycle + Pre-Release Security (HISTORY)
+
+- `session_removed` WS message; server removes closed/stopped sessions after 30s; browser tile fades out
+- Security: personal paths and username scrubbed from all tracked docs, tests, and comments
+- 80/80 tests; tsc clean; pushed to GitHub
+
+---
+
 ## CURRENT CHECKPOINT
 
-### 2026-04-19 — Session Lifecycle + Pre-Release Security
+### 2026-04-20 — v0.1.0 Public Release
 
-**Objective:** Closed tiles auto-remove; repo safe for public community use.
+**Objective:** Ship the first tagged public release on GitHub.
 
 **Completed work:**
-- `session_removed` WS message: server removes closed/stopped sessions after 30s delay
-- Browser: tile fades out (opacity+scale transition) then removed from DOM; chart history cleared
-- `SessionRegistry.scheduleRemoval()`: fires on `session_end` event and `markStopped()`; deduped; cleared on `destroy()`
-- Security: removed personal paths (`C:/Users/quick/`) from plan/spec docs; removed username from test fixtures and code comments
+- `gh release create v0.1.0` — release published at https://github.com/skyconasia-ux/claude-pulse/releases/tag/v0.1.0
+- Release notes: feature list, quick start, requirements, v0.2 roadmap
 
-**Current progress:** Pushed to GitHub.
+**Current progress:** v0.1.0 live on GitHub. Repo public, MIT licensed.
 
-**Next step:** Community testing, issue triage, v0.1 release tag.
+**Next step:** Community testing; monitor issues; plan v0.2.
 
 **Pending tasks:**
-- OTel span inspection: check if rate-limit headers exported (server logs after next `claude` run)
-- Phase 5: abort controls, production hardening
-- `gh release create v0.1.0` public release
+- OTel span inspection: check server logs for `anthropic-ratelimit-*` keys after next `claude` run
+- Phase 5: abort controls in browser dashboard
+- Production hardening
